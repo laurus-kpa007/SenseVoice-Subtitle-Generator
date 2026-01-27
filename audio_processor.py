@@ -1,0 +1,478 @@
+import os
+import ffmpeg
+import tempfile
+from datetime import datetime
+
+
+class AudioProcessor:
+    """오디오 추출 및 전처리 클래스"""
+
+    def __init__(self, options):
+        self.options = options
+
+    def extract_audio(self, video_path):
+        """
+        MP4 동영상에서 오디오를 추출
+
+        Args:
+            video_path: 동영상 파일 경로
+
+        Returns:
+            추출된 오디오 파일 경로
+        """
+        # 임시 오디오 파일 경로 생성
+        temp_dir = tempfile.gettempdir()
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        audio_path = os.path.join(temp_dir, f'temp_audio_{timestamp}.wav')
+
+        try:
+            # FFmpeg를 사용하여 오디오 추출
+            stream = ffmpeg.input(video_path)
+
+            # 오디오 설정
+            stream = ffmpeg.output(
+                stream,
+                audio_path,
+                acodec='pcm_s16le',  # WAV 포맷
+                ac=1,                 # 모노 채널
+                ar='16000',           # 16kHz 샘플레이트 (SenseVoice 권장)
+                loglevel='error'
+            )
+
+            # 기존 파일이 있으면 덮어쓰기
+            ffmpeg.run(stream, overwrite_output=True)
+
+            # 전처리 적용
+            if self.options.get('mdx_separation', False):
+                audio_path = self.apply_mdx_separation(audio_path)
+
+            if self.options.get('normalize_audio', False):
+                audio_path = self.normalize_audio(audio_path)
+
+            return audio_path
+
+        except ffmpeg.Error as e:
+            error_msg = e.stderr.decode() if e.stderr else str(e)
+            raise Exception(f"오디오 추출 실패: {error_msg}")
+
+    def apply_mdx_separation(self, audio_path):
+        """
+        MDX Kim 음성 분리 적용 (배경음악/소음 제거)
+
+        Args:
+            audio_path: 원본 오디오 파일 경로
+
+        Returns:
+            처리된 오디오 파일 경로
+        """
+        try:
+            # 실제 환경에서는 demucs 또는 spleeter 같은 라이브러리 사용
+            # 여기서는 간단한 노이즈 리덕션 필터 적용
+            temp_dir = tempfile.gettempdir()
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            output_path = os.path.join(temp_dir, f'separated_{timestamp}.wav')
+
+            stream = ffmpeg.input(audio_path)
+
+            # 노이즈 리덕션 및 음성 강화 필터
+            stream = ffmpeg.filter(stream, 'highpass', f=200)  # 저주파 노이즈 제거
+            stream = ffmpeg.filter(stream, 'lowpass', f=3000)  # 고주파 노이즈 제거
+
+            stream = ffmpeg.output(
+                stream,
+                output_path,
+                acodec='pcm_s16le',
+                ac=1,
+                ar='16000',
+                loglevel='error'
+            )
+
+            ffmpeg.run(stream, overwrite_output=True)
+
+            # 원본 파일 삭제
+            if os.path.exists(audio_path):
+                os.remove(audio_path)
+
+            return output_path
+
+        except Exception as e:
+            print(f"음성 분리 경고: {e}, 원본 파일 사용")
+            return audio_path
+
+    def normalize_audio(self, audio_path):
+        """
+        EBU R128 라우드니스 정규화 적용
+
+        Args:
+            audio_path: 원본 오디오 파일 경로
+
+        Returns:
+            정규화된 오디오 파일 경로
+        """
+        try:
+            temp_dir = tempfile.gettempdir()
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            output_path = os.path.join(temp_dir, f'normalized_{timestamp}.wav')
+
+            stream = ffmpeg.input(audio_path)
+
+            # 라우드니스 정규화 필터 적용
+            stream = ffmpeg.filter(stream, 'loudnorm', I=-16, TP=-1.5, LRA=11)
+
+            stream = ffmpeg.output(
+                stream,
+                output_path,
+                acodec='pcm_s16le',
+                ac=1,
+                ar='16000',
+                loglevel='error'
+            )
+
+            ffmpeg.run(stream, overwrite_output=True)
+
+            # 원본 파일 삭제
+            if os.path.exists(audio_path):
+                os.remove(audio_path)
+
+            return output_path
+
+        except Exception as e:
+            print(f"정규화 경고: {e}, 원본 파일 사용")
+            return audio_path
+
+    def transcribe(self, audio_path):
+        """
+        SenseVoice를 사용하여 오디오를 텍스트로 변환
+        VAD를 먼저 실행하여 세그먼트를 나눈 후 각각 인식
+
+        Args:
+            audio_path: 오디오 파일 경로
+
+        Returns:
+            인식 결과 (타임스탬프 포함)
+        """
+        try:
+            from funasr import AutoModel
+            import librosa
+            import numpy as np
+
+            # 디바이스 설정
+            device = "cpu"
+            print(f"사용 디바이스: {device}")
+
+            # 1단계: VAD 모델로 음성 구간 탐지
+            print("\n[1단계] VAD (음성 구간 탐지) 실행 중...")
+            vad_kwargs = self.get_vad_kwargs()
+
+            vad_model = AutoModel(
+                model="fsmn-vad",
+                device=device,
+                disable_update=True,
+                trust_remote_code=True  # 공식 모델이므로 안전
+            )
+
+            vad_result = vad_model.generate(input=audio_path)
+            print(f"VAD 완료! 결과 타입: {type(vad_result)}")
+
+            # VAD 세그먼트 추출
+            vad_segments = []
+            if isinstance(vad_result, list) and len(vad_result) > 0:
+                vad_data = vad_result[0]
+                if isinstance(vad_data, dict) and 'value' in vad_data:
+                    # value는 [[start_ms, end_ms], ...] 형태
+                    segments_list = vad_data['value']
+                    print(f"VAD 세그먼트 수: {len(segments_list)}")
+
+                    for seg in segments_list:
+                        if isinstance(seg, (list, tuple)) and len(seg) >= 2:
+                            start_ms, end_ms = seg[0], seg[1]
+                            vad_segments.append({
+                                'start': start_ms / 1000.0,  # 밀리초 -> 초
+                                'end': end_ms / 1000.0
+                            })
+
+                    print(f"VAD로 {len(vad_segments)}개 음성 구간 탐지됨")
+                    for idx, seg in enumerate(vad_segments[:5]):  # 처음 5개만 출력
+                        print(f"  세그먼트 {idx}: {seg['start']:.2f}s ~ {seg['end']:.2f}s")
+                    if len(vad_segments) > 5:
+                        print(f"  ... 외 {len(vad_segments)-5}개")
+
+            # VAD 세그먼트가 없으면 전체를 하나로
+            if not vad_segments:
+                print("VAD 세그먼트 없음 - 전체 오디오를 하나로 처리")
+                import wave
+                try:
+                    with wave.open(audio_path, 'rb') as wf:
+                        duration = wf.getnframes() / wf.getframerate()
+                        vad_segments = [{'start': 0, 'end': duration}]
+                except:
+                    vad_segments = [{'start': 0, 'end': 90}]  # 기본값
+
+            # 2단계: SenseVoice 모델로 각 세그먼트 인식
+            print("\n[2단계] 음성 인식 모델 로드 중...")
+
+            # 언어 설정
+            language = self.options.get('language', 'auto')
+            print(f"\n★★★ GUI에서 전달받은 언어 설정: '{language}' ★★★")
+
+            lang_map = {'ja': 'ja', 'en': 'en', 'ko': 'ko', 'zh': 'zh', 'auto': 'auto'}
+            target_lang = lang_map.get(language, 'auto')
+            print(f"★★★ 변환된 언어 코드: '{target_lang}' ★★★\n")
+
+            # 일본어 선택 시 전용 모델 사용 옵션 (현재는 SenseVoice 사용)
+            if target_lang == 'ja':
+                # 일본어 전용 모델을 원하면 여기서 변경 가능
+                # model_name = 'damo/speech_paraformer-large_asr_nat-ja-16k-common'
+                model_name = self.get_model_name()  # 현재는 SenseVoice 사용
+                print(f"⚠️  일본어 모드로 설정됨")
+                print(f"⚠️  주의: SenseVoice는 다국어 자동 감지 모델이므로")
+                print(f"⚠️  실제 음성이 한국어로 들리면 한국어로 인식할 수 있습니다.")
+            else:
+                model_name = self.get_model_name()
+
+            asr_model = AutoModel(
+                model=model_name,
+                device=device,
+                disable_update=True,
+                disable_pbar=False,
+                trust_remote_code=True  # 공식 모델이므로 안전
+            )
+            print(f"\n모델 로드 완료: {model_name}")
+            print(f"설정된 대상 언어: {target_lang}")
+
+            # 오디오 로드
+            audio_data, sr = librosa.load(audio_path, sr=16000, mono=True)
+            total_duration = len(audio_data) / sr
+            print(f"오디오 로드 완료: {total_duration:.2f}초, 샘플레이트: {sr}Hz")
+
+            # 각 VAD 세그먼트 인식
+            all_segments = []
+
+            for idx, vad_seg in enumerate(vad_segments):
+                start_sec = vad_seg['start']
+                end_sec = vad_seg['end']
+
+                # 오디오 세그먼트 추출
+                start_sample = int(start_sec * sr)
+                end_sample = int(end_sec * sr)
+                segment_audio = audio_data[start_sample:end_sample]
+
+                # 너무 짧은 세그먼트는 스킵
+                if len(segment_audio) < sr * 0.3:  # 0.3초 미만
+                    continue
+
+                print(f"\n세그먼트 {idx+1}/{len(vad_segments)}: {start_sec:.2f}s ~ {end_sec:.2f}s 인식 중...")
+
+                # 음성 인식
+                result = asr_model.generate(
+                    input=segment_audio,
+                    language=target_lang,
+                    use_itn=True,
+                    data_type="sound"  # numpy array 직접 입력
+                )
+
+                # 결과 파싱
+                if isinstance(result, list) and len(result) > 0:
+                    text = result[0].get('text', '') if isinstance(result[0], dict) else ''
+
+                    # 메타데이터 제거
+                    import re
+                    clean_text = re.sub(r'<\|[^|]+\|>', '', text)
+                    clean_text = re.sub(r'<speaker_\d+>\s*', '', clean_text)
+                    clean_text = re.sub(r'\s+', ' ', clean_text).strip()
+
+                    if clean_text:
+                        all_segments.append({
+                            'start': start_sec,
+                            'end': end_sec,
+                            'text': clean_text
+                        })
+                        print(f"  텍스트: {clean_text[:100]}...")
+
+            print(f"\n총 {len(all_segments)}개 세그먼트 인식 완료")
+
+            # 결과 반환
+            if all_segments:
+                transcription = {
+                    'text': ' '.join([seg['text'] for seg in all_segments]),
+                    'segments': all_segments,
+                    'language': target_lang
+                }
+                return [transcription]
+            else:
+                return [{'text': '', 'segments': [], 'language': target_lang}]
+
+        except Exception as e:
+            import traceback
+            print(f"\n오류 발생:\n{traceback.format_exc()}")
+            raise Exception(f"음성 인식 실패: {str(e)}")
+
+    def get_model_name(self):
+        """모델 크기에 따른 모델 이름 반환"""
+        # SenseVoice Small: 최고의 다국어 모델 (50+ 언어, 400k 시간 학습)
+        # Paraformer Large: 더 큰 모델이지만 중국어 특화
+        model_map = {
+            'small': 'iic/SenseVoiceSmall',
+            'medium': 'iic/SenseVoiceSmall',
+            'turbo': 'iic/SenseVoiceSmall',
+            'large-v3': 'iic/SenseVoiceSmall',  # SenseVoice는 Small 버전만 존재
+            # 'large-v3': 'damo/speech_paraformer-large-vad-punc_asr_nat-zh-cn-16k-common-vocab8404-pytorch',  # 더 큰 모델 (중국어 특화)
+        }
+
+        model_size = self.options.get('model', 'large-v3')  # 기본값: 최고품질
+        return model_map.get(model_size, 'iic/SenseVoiceSmall')
+
+    def get_vad_kwargs(self):
+        """VAD 설정 반환"""
+        vad_mode = self.options.get('vad', 'normal')
+
+        vad_settings = {
+            'off': None,
+            'sensitive': {
+                'max_single_segment_time': 30000,
+                'speech_noise_thres': 0.3,  # 낮은 임계값
+            },
+            'normal': {
+                'max_single_segment_time': 30000,
+                'speech_noise_thres': 0.5,  # 중간 임계값
+            },
+            'strict': {
+                'max_single_segment_time': 30000,
+                'speech_noise_thres': 0.7,  # 높은 임계값
+            }
+        }
+
+        return vad_settings.get(vad_mode, vad_settings['normal'])
+
+    def parse_result(self, result, segment_index=0):
+        """
+        SenseVoice 결과 파싱
+
+        Args:
+            result: SenseVoice 인식 결과
+            segment_index: VAD 세그먼트 인덱스 (여러 세그먼트로 분리된 경우)
+
+        Returns:
+            파싱된 결과 딕셔너리
+        """
+        import re
+
+        print(f"\n=== parse_result 호출 (세그먼트 #{segment_index}) ===")
+        print(f"입력 타입: {type(result)}")
+
+        def clean_sensevoice_text(text):
+            """SenseVoice 메타데이터 태그 제거"""
+            # <|언어|>, <|감정|>, <|타입|> 등 메타데이터 제거
+            text = re.sub(r'<\|[^|]+\|>', '', text)
+            # <speaker_N> 제거
+            text = re.sub(r'<speaker_\d+>\s*', '', text)
+            # 연속된 공백 제거
+            text = re.sub(r'\s+', ' ', text)
+            # 앞뒤 공백 제거
+            text = text.strip()
+            return text
+
+        # SenseVoice 결과 구조에 맞게 파싱
+        if isinstance(result, dict):
+            raw_text = result.get('text', '')
+            print(f"원본 텍스트: {raw_text[:200]}...")
+
+            # 메타데이터 제거
+            clean_text = clean_sensevoice_text(raw_text)
+            print(f"정제된 텍스트: {clean_text[:200]}...")
+
+            segments = []
+
+            # sentence_info에서 세그먼트 추출 (FunASR의 표준 출력)
+            sentence_info = result.get('sentence_info', [])
+            print(f"sentence_info 존재: {len(sentence_info) if sentence_info else 0}개 세그먼트")
+
+            if sentence_info and isinstance(sentence_info, list):
+                # sentence_info가 있는 경우 - 각 문장별로 세그먼트 생성
+                for sent in sentence_info:
+                    if isinstance(sent, dict):
+                        sent_text = clean_sensevoice_text(sent.get('text', ''))
+                        if sent_text:  # 텍스트가 있는 경우만
+                            segments.append({
+                                'start': sent.get('start', 0),
+                                'end': sent.get('end', 0),
+                                'text': sent_text
+                            })
+            else:
+                # sentence_info가 없는 경우 - timestamp 필드 확인
+                timestamp = result.get('timestamp', None)
+                print(f"timestamp 필드: {type(timestamp)}")
+
+                if timestamp and isinstance(timestamp, list) and len(timestamp) > 0:
+                    # timestamp가 있는 경우
+                    print(f"timestamp 길이: {len(timestamp)}")
+
+                    # timestamp 구조 확인
+                    if len(timestamp) > 0:
+                        print(f"timestamp[0] 샘플: {timestamp[0]}")
+
+                    # timestamp는 보통 [[start, end], [start, end], ...] 형태
+                    for idx, ts_info in enumerate(timestamp):
+                        if isinstance(ts_info, (list, tuple)) and len(ts_info) >= 2:
+                            start_ms = ts_info[0]
+                            end_ms = ts_info[1]
+
+                            # 밀리초를 초로 변환
+                            start_sec = start_ms / 1000.0 if start_ms > 1000 else start_ms
+                            end_sec = end_ms / 1000.0 if end_ms > 1000 else end_ms
+
+                            # 전체 텍스트를 세그먼트 개수로 나눔
+                            words = clean_text.split()
+                            segment_size = max(1, len(words) // len(timestamp))
+                            start_word = idx * segment_size
+                            end_word = start_word + segment_size if idx < len(timestamp) - 1 else len(words)
+                            segment_text = ' '.join(words[start_word:end_word])
+
+                            if segment_text:
+                                segments.append({
+                                    'start': start_sec,
+                                    'end': end_sec,
+                                    'text': segment_text
+                                })
+
+                if not segments:
+                    # 타임스탬프도 없으면 전체 텍스트를 하나의 세그먼트로
+                    print("세그먼트 정보 없음 - 전체를 단일 세그먼트로 처리")
+                    if clean_text:
+                        segments.append({
+                            'start': 0,
+                            'end': len(clean_text.split()) * 0.5,
+                            'text': clean_text
+                        })
+
+            parsed = {
+                'text': clean_text,
+                'segments': segments,
+                'language': result.get('language', 'unknown')
+            }
+            print(f"최종 세그먼트 수: {len(segments)}")
+            if segments:
+                print(f"첫 세그먼트: {segments[0]}")
+            return parsed
+
+        # 문자열인 경우
+        elif isinstance(result, str):
+            clean_text = clean_sensevoice_text(result)
+            parsed = {
+                'text': clean_text,
+                'segments': [{'start': 0, 'end': len(clean_text.split()) * 0.5, 'text': clean_text}],
+                'language': 'unknown'
+            }
+            print(f"문자열 파싱 결과: {parsed}")
+            return parsed
+
+        # 기타
+        else:
+            text = clean_sensevoice_text(str(result))
+            parsed = {
+                'text': text,
+                'segments': [{'start': 0, 'end': 0, 'text': text}],
+                'language': 'unknown'
+            }
+            print(f"기본 파싱 결과: {parsed}")
+            return parsed

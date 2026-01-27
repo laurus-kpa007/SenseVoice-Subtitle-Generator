@@ -1,0 +1,11 @@
+{
+  "model": 4,
+  "vad": 3,
+  "language": 3,
+  "mdx": true,
+  "normalize": false,
+  "emotion": true,
+  "speaker": true,
+  "timestamp": true,
+  "format": 1
+}
