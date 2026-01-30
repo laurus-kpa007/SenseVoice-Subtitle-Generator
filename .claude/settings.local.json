@@ -6,7 +6,12 @@
       "Bash(python patch_funasr.py:*)",
       "Bash(dir /o-s \"d:\\\\Python\\\\SenseVoice\\\\logs\")",
       "Bash(python test_parse_result.py:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nInitial commit: SenseVoice subtitle generator with enhanced features\n\nFeatures:\n- Multi-file/folder drag & drop support\n- VAD-based audio segmentation for accurate timestamps\n- Clean metadata removal from SenseVoice output\n- Multi-language support \\(Korean, Japanese, English\\)\n- PyQt5 GUI with file list management\n- Sequential batch processing\n- SRT/VTT subtitle format support\n\nCo-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(git remote:*)",
+      "Bash(git branch:*)",
+      "Bash(git push:*)",
+      "Bash(git commit:*)"
     ]
   }
 }

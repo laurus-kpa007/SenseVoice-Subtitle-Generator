@@ -156,8 +156,19 @@ class AudioProcessor:
             import librosa
             import numpy as np
 
-            # 디바이스 설정
-            device = "cpu"
+            # 디바이스 설정 - GPU 우선 사용
+            import torch
+
+            if torch.cuda.is_available():
+                device = "cuda:0"
+                gpu_name = torch.cuda.get_device_name(0)
+                print(f"🚀 GPU 사용: {gpu_name}")
+                print(f"   CUDA 버전: {torch.version.cuda}")
+                print(f"   GPU 메모리: {torch.cuda.get_device_properties(0).total_memory / 1024**3:.1f}GB")
+            else:
+                device = "cpu"
+                print(f"⚠️  GPU를 사용할 수 없습니다. CPU 모드로 실행")
+
             print(f"사용 디바이스: {device}")
 
             # 1단계: VAD 모델로 음성 구간 탐지
@@ -245,49 +256,94 @@ class AudioProcessor:
             total_duration = len(audio_data) / sr
             print(f"오디오 로드 완료: {total_duration:.2f}초, 샘플레이트: {sr}Hz")
 
-            # 각 VAD 세그먼트 인식
+            # 각 VAD 세그먼트 인식 (GPU 배치 처리 최적화)
             all_segments = []
 
-            for idx, vad_seg in enumerate(vad_segments):
+            # GPU 사용 시 배치 크기 설정
+            batch_size = 8 if device.startswith("cuda") else 1
+            print(f"\n배치 크기: {batch_size} (GPU 가속 {'활성화' if device.startswith('cuda') else '비활성화'})")
+
+            # 세그먼트 준비
+            valid_segments = []
+            for vad_seg in vad_segments:
                 start_sec = vad_seg['start']
                 end_sec = vad_seg['end']
 
-                # 오디오 세그먼트 추출
                 start_sample = int(start_sec * sr)
                 end_sample = int(end_sec * sr)
                 segment_audio = audio_data[start_sample:end_sample]
 
                 # 너무 짧은 세그먼트는 스킵
-                if len(segment_audio) < sr * 0.3:  # 0.3초 미만
-                    continue
+                if len(segment_audio) >= sr * 0.3:  # 0.3초 이상
+                    valid_segments.append({
+                        'audio': segment_audio,
+                        'start': start_sec,
+                        'end': end_sec
+                    })
 
-                print(f"\n세그먼트 {idx+1}/{len(vad_segments)}: {start_sec:.2f}s ~ {end_sec:.2f}s 인식 중...")
+            print(f"처리할 세그먼트 수: {len(valid_segments)}개")
 
-                # 음성 인식
-                result = asr_model.generate(
-                    input=segment_audio,
-                    language=target_lang,
-                    use_itn=True,
-                    data_type="sound"  # numpy array 직접 입력
-                )
+            # 배치 단위로 처리
+            for batch_idx in range(0, len(valid_segments), batch_size):
+                batch = valid_segments[batch_idx:batch_idx + batch_size]
+                batch_audios = [seg['audio'] for seg in batch]
+
+                print(f"\n배치 {batch_idx//batch_size + 1}/{(len(valid_segments) + batch_size - 1)//batch_size}: "
+                      f"{len(batch)}개 세그먼트 처리 중...")
+
+                # 배치 음성 인식
+                if len(batch_audios) == 1:
+                    # 단일 세그먼트
+                    result = asr_model.generate(
+                        input=batch_audios[0],
+                        language=target_lang,
+                        use_itn=True,
+                        data_type="sound"
+                    )
+                    results = [result]
+                else:
+                    # 다중 세그먼트 배치 처리
+                    try:
+                        result = asr_model.generate(
+                            input=batch_audios,
+                            language=target_lang,
+                            use_itn=True,
+                            data_type="sound"
+                        )
+                        results = result if isinstance(result, list) else [result]
+                    except:
+                        # 배치 처리 실패 시 개별 처리
+                        print("  배치 처리 실패, 개별 처리로 전환...")
+                        results = []
+                        for audio in batch_audios:
+                            r = asr_model.generate(
+                                input=audio,
+                                language=target_lang,
+                                use_itn=True,
+                                data_type="sound"
+                            )
+                            results.append(r)
 
                 # 결과 파싱
-                if isinstance(result, list) and len(result) > 0:
-                    text = result[0].get('text', '') if isinstance(result[0], dict) else ''
+                import re
+                for seg, result in zip(batch, results):
+                    if isinstance(result, list) and len(result) > 0:
+                        text = result[0].get('text', '') if isinstance(result[0], dict) else ''
+                    else:
+                        text = ''
 
                     # 메타데이터 제거
-                    import re
                     clean_text = re.sub(r'<\|[^|]+\|>', '', text)
                     clean_text = re.sub(r'<speaker_\d+>\s*', '', clean_text)
                     clean_text = re.sub(r'\s+', ' ', clean_text).strip()
 
                     if clean_text:
                         all_segments.append({
-                            'start': start_sec,
-                            'end': end_sec,
+                            'start': seg['start'],
+                            'end': seg['end'],
                             'text': clean_text
                         })
-                        print(f"  텍스트: {clean_text[:100]}...")
+                        print(f"  [{seg['start']:.1f}s-{seg['end']:.1f}s] {clean_text[:80]}...")
 
             print(f"\n총 {len(all_segments)}개 세그먼트 인식 완료")
 
