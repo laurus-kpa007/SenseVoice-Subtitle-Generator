@@ -397,7 +397,7 @@ class DropArea(QFrame):
         self.setup_ui()
         
     def setup_ui(self):
-        self.setMin_height(180)
+        self.setMin_height(360)  # 180 -> 360 (2배)
         self.setStyleSheet("""
             DropArea {
                 background-color: #1a1a2e;
@@ -409,39 +409,44 @@ class DropArea(QFrame):
                 background-color: #1f1f35;
             }
         """)
-        
+
         layout = QVBoxLayout(self)
-        layout.setAlignment(Qt.AlignCenter)
+        layout.setAlignment(Qt.AlignTop | Qt.AlignLeft)  # 좌측 상단 정렬
         layout.setSpacing(10)
-        
+        layout.setContentsMargins(20, 20, 20, 20)  # 여백 추가
+
         # 아이콘
         self.icon_label = QLabel("🎬")
         self.icon_label.setStyleSheet("font-size: 96px; background: transparent; border: none;")
-        self.icon_label.setAlignment(Qt.AlignCenter)
+        self.icon_label.setAlignment(Qt.AlignLeft)  # 좌측 정렬
         layout.addWidget(self.icon_label)
-        
+
         # 텍스트
         self.text_label = QLabel()
         self.text_label.setStyleSheet("""
-            font-size: 28px; 
-            color: #8080a0; 
-            background: transparent; 
+            font-size: 56px;
+            color: #8080a0;
+            background: transparent;
             border: none;
             font-weight: 500;
         """)
-        self.text_label.setAlignment(Qt.AlignCenter)
+        self.text_label.setAlignment(Qt.AlignLeft)  # 좌측 정렬
+        self.text_label.setWordWrap(True)  # 줄바꿈 활성화
         layout.addWidget(self.text_label)
-        
+
         # 서브 텍스트
         self.sub_label = QLabel()
         self.sub_label.setStyleSheet("""
-            font-size: 22px; 
-            color: #505070; 
-            background: transparent; 
+            font-size: 44px;
+            color: #505070;
+            background: transparent;
             border: none;
         """)
-        self.sub_label.setAlignment(Qt.AlignCenter)
+        self.sub_label.setAlignment(Qt.AlignLeft)  # 좌측 정렬
+        self.sub_label.setWordWrap(True)  # 줄바꿈 활성화
         layout.addWidget(self.sub_label)
+
+        layout.addStretch()  # 하단에 여백 추가
 
     def setMin_height(self, h):
         self.setMinimumHeight(h)
@@ -758,26 +763,35 @@ class SenseVoiceGUI(QMainWindow):
         button_layout = QHBoxLayout()
         button_layout.setSpacing(10)
 
+        # 모든 버튼 높이 통일
+        button_height = 60
+
         self.add_file_btn = QPushButton(f"📄 {self.tr('add_files')}")
         self.add_file_btn.clicked.connect(self.select_files)
+        self.add_file_btn.setMinimumHeight(button_height)
 
         self.add_folder_btn = QPushButton(f"📁 {self.tr('add_folder')}")
         self.add_folder_btn.clicked.connect(self.select_folder)
+        self.add_folder_btn.setMinimumHeight(button_height)
 
         self.clear_btn = QPushButton(f"🗑 {self.tr('clear_list')}")
         self.clear_btn.clicked.connect(self.clear_file_list)
+        self.clear_btn.setMinimumHeight(button_height)
 
         self.cancel_btn = QPushButton(self.tr('cancel'))
         self.cancel_btn.clicked.connect(self.cancel_processing)
         self.cancel_btn.setEnabled(False)
+        self.cancel_btn.setMinimumHeight(button_height)
 
         self.start_btn = QPushButton(f"▶  {self.tr('start')}")
         self.start_btn.setObjectName("startButton")
         self.start_btn.clicked.connect(self.start_processing)
-        self.start_btn.setMinimumWidth(140)
+        self.start_btn.setMinimumWidth(280)  # 가로 더 크게
+        self.start_btn.setMinimumHeight(button_height)
 
         self.close_btn = QPushButton(self.tr('exit'))
         self.close_btn.clicked.connect(self.close)
+        self.close_btn.setMinimumHeight(button_height)
 
         button_layout.addWidget(self.add_file_btn)
         button_layout.addWidget(self.add_folder_btn)
@@ -809,7 +823,7 @@ class SenseVoiceGUI(QMainWindow):
 
         self.log_text = QTextEdit()
         self.log_text.setReadOnly(True)
-        self.log_text.setMinimumHeight(150)
+        self.log_text.setMinimumHeight(300)  # 150 -> 300 (2배)
         main_layout.addWidget(self.log_text)
 
     def on_ui_language_changed(self, index):
@@ -851,15 +865,13 @@ class SenseVoiceGUI(QMainWindow):
             return
 
         count = len(self.video_paths)
-        file_list = "\n".join([f"  • {os.path.basename(f)}" for f in self.video_paths[:5]])
-        
-        if count > 5:
-            file_list += f"\n  {self.tr('and_more')} {count - 5} {self.tr('more_files')}..."
+        # 모든 파일 표시 (제한 없음, 스크롤 활성화)
+        file_list = "\n".join([f"{i+1}. {os.path.basename(f)}" for i, f in enumerate(self.video_paths)])
 
         self.drop_area.update_text(
-            f"{count} {self.tr('files_selected')}",
+            f"📁 {count} {self.tr('files_selected')}",
             file_list,
-            "📁"
+            ""  # 아이콘은 제목에 포함
         )
 
     def select_files(self):
