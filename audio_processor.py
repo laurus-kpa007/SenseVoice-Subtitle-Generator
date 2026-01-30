@@ -156,105 +156,155 @@ class AudioProcessor:
             import librosa
             import numpy as np
 
-            # 디바이스 설정 - GPU 우선 사용
+            # 디바이스 설정 - GPU 호환성 확인
             import torch
 
-            if torch.cuda.is_available():
-                device = "cuda:0"
-                gpu_name = torch.cuda.get_device_name(0)
-                print(f"🚀 GPU 사용: {gpu_name}")
-                print(f"   CUDA 버전: {torch.version.cuda}")
-                print(f"   GPU 메모리: {torch.cuda.get_device_properties(0).total_memory / 1024**3:.1f}GB")
+            # CUDA 가용성 확인
+            cuda_available = torch.cuda.is_available()
+
+            if cuda_available:
+                try:
+                    # GPU 호환성 테스트
+                    gpu_name = torch.cuda.get_device_name(0)
+                    cuda_version = torch.version.cuda
+
+                    # 간단한 텐서 연산으로 GPU 작동 확인
+                    test_tensor = torch.zeros(1).cuda()
+                    _ = test_tensor + 1
+
+                    device = "cuda:0"
+                    print(f"🚀 GPU 사용: {gpu_name}")
+                    print(f"   CUDA 버전: {cuda_version}")
+                    print(f"   GPU 메모리: {torch.cuda.get_device_properties(0).total_memory / 1024**3:.1f}GB")
+
+                except Exception as gpu_error:
+                    print(f"\n⚠️  GPU 호환성 오류 발생!")
+                    print(f"⚠️  오류: {str(gpu_error)[:100]}")
+                    print(f"\n💡 해결 방법:")
+                    print(f"   RTX 5070 Ti는 최신 GPU로 PyTorch CUDA 12.4+ 필요")
+                    print(f"   1. install_gpu.bat 실행")
+                    print(f"   2. 또는 수동 설치:")
+                    print(f"      pip install torch torchaudio --index-url https://download.pytorch.org/whl/cu124")
+                    print(f"\n⚠️  임시로 CPU 모드로 전환합니다...\n")
+                    device = "cpu"
             else:
                 device = "cpu"
-                print(f"⚠️  GPU를 사용할 수 없습니다. CPU 모드로 실행")
+                print(f"⚠️  CUDA를 사용할 수 없습니다. CPU 모드로 실행")
 
             print(f"사용 디바이스: {device}")
 
             # 1단계: VAD 모델로 음성 구간 탐지
             print("\n[1단계] VAD (음성 구간 탐지) 실행 중...")
-            vad_kwargs = self.get_vad_kwargs()
 
-            vad_model = AutoModel(
-                model="fsmn-vad",
-                device=device,
-                disable_update=True,
-                trust_remote_code=True  # 공식 모델이므로 안전
-            )
+            try:
+                vad_kwargs = self.get_vad_kwargs()
 
-            vad_result = vad_model.generate(input=audio_path)
-            print(f"VAD 완료! 결과 타입: {type(vad_result)}")
+                vad_model = AutoModel(
+                    model="fsmn-vad",
+                    device=device,
+                    disable_update=True,
+                    trust_remote_code=True  # 공식 모델이므로 안전
+                )
+                print(f"   VAD 모델 로드 완료")
+
+            except Exception as vad_load_error:
+                raise Exception(f"VAD 모델 로드 실패: {str(vad_load_error)}")
+
+            try:
+                vad_result = vad_model.generate(input=audio_path)
+                print(f"   VAD 완료! 결과 타입: {type(vad_result)}")
+
+            except RuntimeError as cuda_error:
+                if "CUDA" in str(cuda_error):
+                    raise Exception(f"GPU 호환성 오류 - CPU 모드로 재시도하거나 install_gpu.bat를 실행하세요: {str(cuda_error)}")
+                else:
+                    raise Exception(f"VAD 실행 실패: {str(cuda_error)}")
+
+            except Exception as vad_error:
+                raise Exception(f"VAD 음성 구간 탐지 실패: {str(vad_error)}")
 
             # VAD 세그먼트 추출
             vad_segments = []
-            if isinstance(vad_result, list) and len(vad_result) > 0:
-                vad_data = vad_result[0]
-                if isinstance(vad_data, dict) and 'value' in vad_data:
-                    # value는 [[start_ms, end_ms], ...] 형태
-                    segments_list = vad_data['value']
-                    print(f"VAD 세그먼트 수: {len(segments_list)}")
+            try:
+                if isinstance(vad_result, list) and len(vad_result) > 0:
+                    vad_data = vad_result[0]
+                    if isinstance(vad_data, dict) and 'value' in vad_data:
+                        # value는 [[start_ms, end_ms], ...] 형태
+                        segments_list = vad_data['value']
+                        print(f"   VAD 세그먼트 수: {len(segments_list)}")
 
-                    for seg in segments_list:
-                        if isinstance(seg, (list, tuple)) and len(seg) >= 2:
-                            start_ms, end_ms = seg[0], seg[1]
-                            vad_segments.append({
-                                'start': start_ms / 1000.0,  # 밀리초 -> 초
-                                'end': end_ms / 1000.0
-                            })
+                        for seg in segments_list:
+                            if isinstance(seg, (list, tuple)) and len(seg) >= 2:
+                                start_ms, end_ms = seg[0], seg[1]
+                                vad_segments.append({
+                                    'start': start_ms / 1000.0,  # 밀리초 -> 초
+                                    'end': end_ms / 1000.0
+                                })
 
-                    print(f"VAD로 {len(vad_segments)}개 음성 구간 탐지됨")
-                    for idx, seg in enumerate(vad_segments[:5]):  # 처음 5개만 출력
-                        print(f"  세그먼트 {idx}: {seg['start']:.2f}s ~ {seg['end']:.2f}s")
-                    if len(vad_segments) > 5:
-                        print(f"  ... 외 {len(vad_segments)-5}개")
+                        print(f"   VAD로 {len(vad_segments)}개 음성 구간 탐지됨")
+                        for idx, seg in enumerate(vad_segments[:5]):  # 처음 5개만 출력
+                            print(f"     세그먼트 {idx}: {seg['start']:.2f}s ~ {seg['end']:.2f}s")
+                        if len(vad_segments) > 5:
+                            print(f"     ... 외 {len(vad_segments)-5}개")
+
+            except Exception as parse_error:
+                print(f"   ⚠️  VAD 결과 파싱 경고: {str(parse_error)}")
+                vad_segments = []
 
             # VAD 세그먼트가 없으면 전체를 하나로
             if not vad_segments:
-                print("VAD 세그먼트 없음 - 전체 오디오를 하나로 처리")
+                print("   VAD 세그먼트 없음 - 전체 오디오를 하나로 처리")
                 import wave
                 try:
                     with wave.open(audio_path, 'rb') as wf:
                         duration = wf.getnframes() / wf.getframerate()
                         vad_segments = [{'start': 0, 'end': duration}]
-                except:
+                        print(f"   전체 길이: {duration:.2f}초")
+                except Exception as wave_error:
+                    print(f"   ⚠️  오디오 파일 정보 읽기 실패, 기본값 사용: {str(wave_error)}")
                     vad_segments = [{'start': 0, 'end': 90}]  # 기본값
 
             # 2단계: SenseVoice 모델로 각 세그먼트 인식
             print("\n[2단계] 음성 인식 모델 로드 중...")
 
-            # 언어 설정
-            language = self.options.get('language', 'auto')
-            print(f"\n★★★ GUI에서 전달받은 언어 설정: '{language}' ★★★")
+            try:
+                # 언어 설정
+                language = self.options.get('language', 'auto')
+                print(f"   GUI에서 전달받은 언어 설정: '{language}'")
 
-            lang_map = {'ja': 'ja', 'en': 'en', 'ko': 'ko', 'zh': 'zh', 'auto': 'auto'}
-            target_lang = lang_map.get(language, 'auto')
-            print(f"★★★ 변환된 언어 코드: '{target_lang}' ★★★\n")
+                lang_map = {'ja': 'ja', 'en': 'en', 'ko': 'ko', 'zh': 'zh', 'auto': 'auto'}
+                target_lang = lang_map.get(language, 'auto')
+                print(f"   변환된 언어 코드: '{target_lang}'")
 
-            # 일본어 선택 시 전용 모델 사용 옵션 (현재는 SenseVoice 사용)
-            if target_lang == 'ja':
-                # 일본어 전용 모델을 원하면 여기서 변경 가능
-                # model_name = 'damo/speech_paraformer-large_asr_nat-ja-16k-common'
-                model_name = self.get_model_name()  # 현재는 SenseVoice 사용
-                print(f"⚠️  일본어 모드로 설정됨")
-                print(f"⚠️  주의: SenseVoice는 다국어 자동 감지 모델이므로")
-                print(f"⚠️  실제 음성이 한국어로 들리면 한국어로 인식할 수 있습니다.")
-            else:
-                model_name = self.get_model_name()
+                # 일본어 선택 시 알림
+                if target_lang == 'ja':
+                    model_name = self.get_model_name()
+                    print(f"   ℹ️  일본어 모드 (SenseVoice는 다국어 자동 감지)")
+                else:
+                    model_name = self.get_model_name()
 
-            asr_model = AutoModel(
-                model=model_name,
-                device=device,
-                disable_update=True,
-                disable_pbar=False,
-                trust_remote_code=True  # 공식 모델이므로 안전
-            )
-            print(f"\n모델 로드 완료: {model_name}")
-            print(f"설정된 대상 언어: {target_lang}")
+                # ASR 모델 로드
+                asr_model = AutoModel(
+                    model=model_name,
+                    device=device,
+                    disable_update=True,
+                    disable_pbar=False,
+                    trust_remote_code=True
+                )
+                print(f"   ASR 모델 로드 완료: {model_name}")
+                print(f"   설정된 대상 언어: {target_lang}")
+
+            except Exception as model_load_error:
+                raise Exception(f"ASR 모델 로드 실패: {str(model_load_error)}")
 
             # 오디오 로드
-            audio_data, sr = librosa.load(audio_path, sr=16000, mono=True)
-            total_duration = len(audio_data) / sr
-            print(f"오디오 로드 완료: {total_duration:.2f}초, 샘플레이트: {sr}Hz")
+            try:
+                audio_data, sr = librosa.load(audio_path, sr=16000, mono=True)
+                total_duration = len(audio_data) / sr
+                print(f"   오디오 로드 완료: {total_duration:.2f}초, 샘플레이트: {sr}Hz")
+
+            except Exception as audio_load_error:
+                raise Exception(f"오디오 파일 로드 실패: {str(audio_load_error)}")
 
             # 각 VAD 세그먼트 인식 (GPU 배치 처리 최적화)
             all_segments = []
@@ -284,68 +334,103 @@ class AudioProcessor:
             print(f"처리할 세그먼트 수: {len(valid_segments)}개")
 
             # 배치 단위로 처리
+            import re
+            failed_segments = []
+
             for batch_idx in range(0, len(valid_segments), batch_size):
                 batch = valid_segments[batch_idx:batch_idx + batch_size]
                 batch_audios = [seg['audio'] for seg in batch]
 
-                print(f"\n배치 {batch_idx//batch_size + 1}/{(len(valid_segments) + batch_size - 1)//batch_size}: "
-                      f"{len(batch)}개 세그먼트 처리 중...")
+                batch_num = batch_idx//batch_size + 1
+                total_batches = (len(valid_segments) + batch_size - 1)//batch_size
+                print(f"\n배치 {batch_num}/{total_batches}: {len(batch)}개 세그먼트 처리 중...")
 
-                # 배치 음성 인식
-                if len(batch_audios) == 1:
-                    # 단일 세그먼트
-                    result = asr_model.generate(
-                        input=batch_audios[0],
-                        language=target_lang,
-                        use_itn=True,
-                        data_type="sound"
-                    )
-                    results = [result]
-                else:
-                    # 다중 세그먼트 배치 처리
-                    try:
+                try:
+                    # 배치 음성 인식
+                    if len(batch_audios) == 1:
+                        # 단일 세그먼트
                         result = asr_model.generate(
-                            input=batch_audios,
+                            input=batch_audios[0],
                             language=target_lang,
                             use_itn=True,
                             data_type="sound"
                         )
-                        results = result if isinstance(result, list) else [result]
-                    except:
-                        # 배치 처리 실패 시 개별 처리
-                        print("  배치 처리 실패, 개별 처리로 전환...")
-                        results = []
-                        for audio in batch_audios:
-                            r = asr_model.generate(
-                                input=audio,
+                        results = [result]
+                    else:
+                        # 다중 세그먼트 배치 처리
+                        try:
+                            result = asr_model.generate(
+                                input=batch_audios,
                                 language=target_lang,
                                 use_itn=True,
                                 data_type="sound"
                             )
-                            results.append(r)
+                            results = result if isinstance(result, list) else [result]
+                        except Exception as batch_error:
+                            # 배치 처리 실패 시 개별 처리
+                            print(f"  ⚠️  배치 처리 실패: {str(batch_error)[:50]}")
+                            print(f"  개별 처리로 전환...")
+                            results = []
+                            for i, audio in enumerate(batch_audios):
+                                try:
+                                    r = asr_model.generate(
+                                        input=audio,
+                                        language=target_lang,
+                                        use_itn=True,
+                                        data_type="sound"
+                                    )
+                                    results.append(r)
+                                except Exception as single_error:
+                                    print(f"  ⚠️  세그먼트 {i+1} 처리 실패: {str(single_error)[:30]}")
+                                    results.append(None)
 
-                # 결과 파싱
-                import re
-                for seg, result in zip(batch, results):
-                    if isinstance(result, list) and len(result) > 0:
-                        text = result[0].get('text', '') if isinstance(result[0], dict) else ''
-                    else:
-                        text = ''
+                    # 결과 파싱
+                    for seg, result in zip(batch, results):
+                        try:
+                            if result is None:
+                                failed_segments.append(seg)
+                                continue
 
-                    # 메타데이터 제거
-                    clean_text = re.sub(r'<\|[^|]+\|>', '', text)
-                    clean_text = re.sub(r'<speaker_\d+>\s*', '', clean_text)
-                    clean_text = re.sub(r'\s+', ' ', clean_text).strip()
+                            if isinstance(result, list) and len(result) > 0:
+                                text = result[0].get('text', '') if isinstance(result[0], dict) else ''
+                            else:
+                                text = ''
 
-                    if clean_text:
-                        all_segments.append({
-                            'start': seg['start'],
-                            'end': seg['end'],
-                            'text': clean_text
-                        })
-                        print(f"  [{seg['start']:.1f}s-{seg['end']:.1f}s] {clean_text[:80]}...")
+                            # 메타데이터 제거
+                            clean_text = re.sub(r'<\|[^|]+\|>', '', text)
+                            clean_text = re.sub(r'<speaker_\d+>\s*', '', clean_text)
+                            clean_text = re.sub(r'\s+', ' ', clean_text).strip()
 
-            print(f"\n총 {len(all_segments)}개 세그먼트 인식 완료")
+                            if clean_text:
+                                all_segments.append({
+                                    'start': seg['start'],
+                                    'end': seg['end'],
+                                    'text': clean_text
+                                })
+                                print(f"  ✓ [{seg['start']:.1f}s-{seg['end']:.1f}s] {clean_text[:80]}...")
+                            else:
+                                print(f"  ⚠️  [{seg['start']:.1f}s-{seg['end']:.1f}s] 텍스트 없음")
+
+                        except Exception as parse_error:
+                            print(f"  ⚠️  결과 파싱 실패: {str(parse_error)}")
+                            failed_segments.append(seg)
+
+                except Exception as batch_critical_error:
+                    print(f"  ❌ 배치 처리 중 심각한 오류: {str(batch_critical_error)}")
+                    failed_segments.extend(batch)
+
+            # 처리 결과 요약
+            print(f"\n" + "="*60)
+            print(f"처리 완료!")
+            print(f"  - 성공: {len(all_segments)}개 세그먼트")
+            print(f"  - 실패: {len(failed_segments)}개 세그먼트")
+            if failed_segments:
+                print(f"  ⚠️  실패한 세그먼트:")
+                for seg in failed_segments[:3]:
+                    print(f"     [{seg['start']:.1f}s-{seg['end']:.1f}s]")
+                if len(failed_segments) > 3:
+                    print(f"     ... 외 {len(failed_segments)-3}개")
+            print("="*60)
 
             # 결과 반환
             if all_segments:
@@ -356,11 +441,22 @@ class AudioProcessor:
                 }
                 return [transcription]
             else:
-                return [{'text': '', 'segments': [], 'language': target_lang}]
+                if failed_segments:
+                    raise Exception(f"모든 세그먼트 처리 실패 ({len(failed_segments)}개)")
+                else:
+                    raise Exception("처리할 음성 구간을 찾을 수 없습니다")
 
         except Exception as e:
             import traceback
-            print(f"\n오류 발생:\n{traceback.format_exc()}")
+            error_trace = traceback.format_exc()
+            print(f"\n{'='*60}")
+            print(f"❌ 음성 인식 중 오류 발생")
+            print(f"{'='*60}")
+            print(f"오류 유형: {type(e).__name__}")
+            print(f"오류 메시지: {str(e)}")
+            print(f"\n상세 스택:")
+            print(error_trace)
+            print(f"{'='*60}")
             raise Exception(f"음성 인식 실패: {str(e)}")
 
     def get_model_name(self):
