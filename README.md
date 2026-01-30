@@ -37,8 +37,37 @@ chmod +x install.sh
 
 ## 사용 방법
 
+### 기본 실행 (CMD 창 표시됨)
 ```bash
 python main.py
+```
+
+### GUI만 실행 (CMD 창 숨김) - 권장
+
+**방법 1: .pyw 파일 더블클릭**
+```
+main.pyw 파일을 더블클릭
+```
+
+**방법 2: VBScript 실행**
+```
+SenseVoice.vbs 파일을 더블클릭
+```
+
+**방법 3: 배치 파일 실행**
+```
+run_gui.bat 실행
+```
+
+**방법 4: 바탕화면 바로가기 생성**
+```
+create_shortcut.vbs 파일을 더블클릭
+→ 바탕화면에 "SenseVoice 자막 생성기" 바로가기 생성됨
+```
+
+### 명령줄에서 직접 실행 (CMD 창 없음)
+```bash
+pythonw main.py
 ```
 
 ## 옵션 설명
