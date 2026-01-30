@@ -144,7 +144,7 @@ QGroupBox {
     margin-top: 12px;
     padding: 20px 15px 15px 15px;
     font-weight: bold;
-    font-size: 13px;
+    font-size: 26px;
 }
 
 QGroupBox::title {
@@ -157,21 +157,21 @@ QGroupBox::title {
 
 QLabel {
     color: #c0c0c0;
-    font-size: 12px;
+    font-size: 48px;
 }
 
 QRadioButton {
     color: #b0b0b0;
     spacing: 8px;
-    font-size: 11px;
+    font-size: 22px;
     padding: 5px;
 }
 
 QRadioButton::indicator {
-    width: 16px;
-    height: 16px;
-    border-radius: 8px;
-    border: 2px solid #4a4a6a;
+    width: 32px;
+    height: 32px;
+    border-radius: 16px;
+    border: 4px solid #4a4a6a;
     background-color: #1a1a2e;
 }
 
@@ -187,15 +187,15 @@ QRadioButton::indicator:hover {
 QCheckBox {
     color: #b0b0b0;
     spacing: 8px;
-    font-size: 11px;
+    font-size: 22px;
     padding: 5px;
 }
 
 QCheckBox::indicator {
-    width: 18px;
-    height: 18px;
-    border-radius: 4px;
-    border: 2px solid #4a4a6a;
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    border: 4px solid #4a4a6a;
     background-color: #1a1a2e;
 }
 
@@ -214,7 +214,7 @@ QPushButton {
     border: none;
     border-radius: 8px;
     padding: 10px 20px;
-    font-size: 12px;
+    font-size: 48px;
     font-weight: 500;
 }
 
@@ -235,7 +235,7 @@ QPushButton#startButton {
     background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
         stop:0 #6c5ce7, stop:1 #a55eea);
     color: white;
-    font-size: 14px;
+    font-size: 28px;
     font-weight: bold;
     padding: 12px 30px;
     border-radius: 10px;
@@ -258,7 +258,7 @@ QTextEdit {
     border-radius: 8px;
     padding: 10px;
     font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
-    font-size: 11px;
+    font-size: 22px;
     selection-background-color: #6c5ce7;
 }
 
@@ -268,7 +268,7 @@ QComboBox {
     border: 1px solid #3d3d5c;
     border-radius: 6px;
     padding: 6px 12px;
-    font-size: 11px;
+    font-size: 22px;
     min-width: 100px;
 }
 
@@ -416,14 +416,14 @@ class DropArea(QFrame):
         
         # 아이콘
         self.icon_label = QLabel("🎬")
-        self.icon_label.setStyleSheet("font-size: 48px; background: transparent; border: none;")
+        self.icon_label.setStyleSheet("font-size: 96px; background: transparent; border: none;")
         self.icon_label.setAlignment(Qt.AlignCenter)
         layout.addWidget(self.icon_label)
         
         # 텍스트
         self.text_label = QLabel()
         self.text_label.setStyleSheet("""
-            font-size: 14px; 
+            font-size: 28px; 
             color: #8080a0; 
             background: transparent; 
             border: none;
@@ -435,7 +435,7 @@ class DropArea(QFrame):
         # 서브 텍스트
         self.sub_label = QLabel()
         self.sub_label.setStyleSheet("""
-            font-size: 11px; 
+            font-size: 22px; 
             color: #505070; 
             background: transparent; 
             border: none;
@@ -567,7 +567,7 @@ class SenseVoiceGUI(QMainWindow):
     def init_ui(self):
         """UI 초기화"""
         self.setWindowTitle(self.tr('window_title'))
-        self.setGeometry(100, 100, 900, 800)
+        self.setGeometry(100, 100, 1350, 1200)  # 1.5배: 900 -> 1350, 800 -> 1200
         self.setStyleSheet(MODERN_STYLE)
 
         # 중앙 위젯
@@ -582,7 +582,7 @@ class SenseVoiceGUI(QMainWindow):
         
         title_label = QLabel("🎬 SenseVoice")
         title_label.setStyleSheet("""
-            font-size: 24px; 
+            font-size: 48px; 
             font-weight: bold; 
             color: #ffffff;
             background: transparent;
@@ -596,7 +596,7 @@ class SenseVoiceGUI(QMainWindow):
         lang_select_layout.setSpacing(8)
         
         self.ui_lang_label = QLabel(self.tr('ui_language') + ":")
-        self.ui_lang_label.setStyleSheet("color: #8080a0; font-size: 11px;")
+        self.ui_lang_label.setStyleSheet("color: #8080a0; font-size: 22px;")
         lang_select_layout.addWidget(self.ui_lang_label)
         
         self.ui_lang_combo = QComboBox()
@@ -794,7 +794,7 @@ class SenseVoiceGUI(QMainWindow):
         self.status_label.setStyleSheet("""
             color: #50fa7b; 
             font-weight: bold; 
-            font-size: 13px;
+            font-size: 26px;
             padding: 8px;
             background-color: #1a1a2e;
             border-radius: 6px;
@@ -804,7 +804,7 @@ class SenseVoiceGUI(QMainWindow):
 
         # 로그 영역
         self.log_label = QLabel(f"📋 {self.tr('log')}")
-        self.log_label.setStyleSheet("font-size: 12px; font-weight: bold; color: #8b8bff;")
+        self.log_label.setStyleSheet("font-size: 48px; font-weight: bold; color: #8b8bff;")
         main_layout.addWidget(self.log_label)
 
         self.log_text = QTextEdit()
@@ -927,7 +927,7 @@ class SenseVoiceGUI(QMainWindow):
         self.status_label.setStyleSheet("""
             color: #f1c40f; 
             font-weight: bold; 
-            font-size: 13px;
+            font-size: 26px;
             padding: 8px;
             background-color: #1a1a2e;
             border-radius: 6px;
@@ -955,7 +955,7 @@ class SenseVoiceGUI(QMainWindow):
             self.status_label.setStyleSheet("""
                 color: #50fa7b; 
                 font-weight: bold; 
-                font-size: 13px;
+                font-size: 26px;
                 padding: 8px;
                 background-color: #1a1a2e;
                 border-radius: 6px;
@@ -966,7 +966,7 @@ class SenseVoiceGUI(QMainWindow):
             self.status_label.setStyleSheet("""
                 color: #ff5555; 
                 font-weight: bold; 
-                font-size: 13px;
+                font-size: 26px;
                 padding: 8px;
                 background-color: #1a1a2e;
                 border-radius: 6px;
