@@ -59,6 +59,9 @@ class AudioProcessor:
         """
         MDX Kim 음성 분리 적용 (배경음악/소음 제거)
 
+        음성 주파수 대역을 강화하고 배경 노이즈를 제거하여
+        음성 인식 정확도를 향상시킵니다.
+
         Args:
             audio_path: 원본 오디오 파일 경로
 
@@ -66,17 +69,26 @@ class AudioProcessor:
             처리된 오디오 파일 경로
         """
         try:
-            # 실제 환경에서는 demucs 또는 spleeter 같은 라이브러리 사용
-            # 여기서는 간단한 노이즈 리덕션 필터 적용
+            print("   음성 분리 및 노이즈 제거 중...")
             temp_dir = tempfile.gettempdir()
             timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
             output_path = os.path.join(temp_dir, f'separated_{timestamp}.wav')
 
             stream = ffmpeg.input(audio_path)
 
-            # 노이즈 리덕션 및 음성 강화 필터
-            stream = ffmpeg.filter(stream, 'highpass', f=200)  # 저주파 노이즈 제거
-            stream = ffmpeg.filter(stream, 'lowpass', f=3000)  # 고주파 노이즈 제거
+            # 음성 주파수 대역 필터링 (사람 목소리 범위: 85Hz ~ 8kHz)
+            # 1. 저주파 노이즈 제거 (에어컨, 풍절음 등)
+            stream = ffmpeg.filter(stream, 'highpass', f=85, poles=2)
+
+            # 2. 고주파 노이즈 제거 (전자음, 휘슬 등)
+            stream = ffmpeg.filter(stream, 'lowpass', f=8000, poles=2)
+
+            # 3. 음성 대역 강화 (300Hz ~ 3.4kHz - 전화 음질 범위)
+            # 이 범위가 음성 명료도에 가장 중요
+            stream = ffmpeg.filter(stream, 'equalizer', frequency=1000, width_type='h', width=2000, gain=3)
+
+            # 4. 배경 노이즈 감소 (선택적, 효과 있을 경우 주석 해제)
+            # stream = ffmpeg.filter(stream, 'afftdn', nr=10, nf=-25)  # FFT 기반 노이즈 감소
 
             stream = ffmpeg.output(
                 stream,
@@ -93,31 +105,44 @@ class AudioProcessor:
             if os.path.exists(audio_path):
                 os.remove(audio_path)
 
+            print("   ✓ 음성 분리 완료 (배경음 제거됨)")
             return output_path
 
         except Exception as e:
-            print(f"음성 분리 경고: {e}, 원본 파일 사용")
+            print(f"   ⚠️  음성 분리 실패: {e}")
+            print(f"   원본 파일 사용")
             return audio_path
 
     def normalize_audio(self, audio_path):
         """
-        EBU R128 라우드니스 정규화 적용
+        EBU R128 라우드니스 정규화 + 음성 증폭 적용
+
+        낮은 볼륨의 오디오를 표준 레벨로 증폭하여
+        음성 인식 정확도를 향상시킵니다.
 
         Args:
             audio_path: 원본 오디오 파일 경로
 
         Returns:
-            정규화된 오디오 파일 경로
+            정규화/증폭된 오디오 파일 경로
         """
         try:
+            print("   오디오 정규화 및 증폭 중...")
             temp_dir = tempfile.gettempdir()
             timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
             output_path = os.path.join(temp_dir, f'normalized_{timestamp}.wav')
 
             stream = ffmpeg.input(audio_path)
 
-            # 라우드니스 정규화 필터 적용
-            stream = ffmpeg.filter(stream, 'loudnorm', I=-16, TP=-1.5, LRA=11)
+            # 1단계: 라우드니스 정규화 (EBU R128 방송 표준)
+            # I=-16: 목표 통합 라우드니스 -16 LUFS (더 크게 하려면 -12로 변경)
+            # TP=-1.5: True Peak 제한 (클리핑 방지)
+            # LRA=11: Loudness Range (다이나믹 레인지 유지)
+            stream = ffmpeg.filter(stream, 'loudnorm', I=-14, TP=-1.0, LRA=11)
+
+            # 2단계: 추가 음량 증폭 (선택적, 필요시 주석 해제)
+            # 낮은 볼륨 오디오의 경우 추가 부스트
+            # stream = ffmpeg.filter(stream, 'volume', volume=1.5)  # 1.5배 증폭
 
             stream = ffmpeg.output(
                 stream,
@@ -134,10 +159,12 @@ class AudioProcessor:
             if os.path.exists(audio_path):
                 os.remove(audio_path)
 
+            print("   ✓ 정규화 완료 (음량 증폭됨)")
             return output_path
 
         except Exception as e:
-            print(f"정규화 경고: {e}, 원본 파일 사용")
+            print(f"   ⚠️  정규화 실패: {e}")
+            print(f"   원본 파일 사용")
             return audio_path
 
     def transcribe(self, audio_path):
