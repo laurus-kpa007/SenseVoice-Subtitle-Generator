@@ -394,21 +394,20 @@ class AudioProcessor:
             failed_segments = []
 
             # CPU 병렬 처리 옵션 (세그먼트가 많을 때만)
-            # 현재 병렬 처리는 모델 로드 락 문제로 비활성화
-            # TODO: 모델 공유 메커니즘 구현 필요
-            use_parallel = False  # (device == "cpu" and len(valid_segments) >= 100)
+            # 멀티스레딩 사용 - 모델 인스턴스를 공유하여 락 문제 해결
+            use_parallel = (device == "cpu" and len(valid_segments) >= 100)
 
             if use_parallel:
-                # 병렬 처리 모듈 사용
+                # 멀티스레딩 병렬 처리 (모델 공유)
                 try:
-                    from parallel_processor import process_segments_parallel
-                    all_segments = process_segments_parallel(
+                    from threaded_processor import process_segments_threaded
+                    all_segments = process_segments_threaded(
+                        asr_model,  # 사전 로드된 모델 전달
                         valid_segments,
                         target_lang,
-                        model_name,
                         num_workers=None  # 자동 감지
                     )
-                    # 실패한 세그먼트는 parallel_processor에서 처리
+                    # 실패한 세그먼트는 threaded_processor에서 처리
                     failed_segments = []
                 except ImportError:
                     print("⚠️  병렬 처리 모듈 없음 - 순차 처리로 전환")
