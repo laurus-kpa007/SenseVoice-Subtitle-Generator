@@ -417,90 +417,92 @@ class AudioProcessor:
                     use_parallel = False
 
             if not use_parallel:
-                # 기존 순차/배치 처리
+                # 기존 순차/배치 처리 (all_segments 초기화)
+                all_segments = []
+
                 for batch_idx in range(0, len(valid_segments), batch_size):
-                batch = valid_segments[batch_idx:batch_idx + batch_size]
-                batch_audios = [seg['audio'] for seg in batch]
+                    batch = valid_segments[batch_idx:batch_idx + batch_size]
+                    batch_audios = [seg['audio'] for seg in batch]
 
-                batch_num = batch_idx//batch_size + 1
-                total_batches = (len(valid_segments) + batch_size - 1)//batch_size
-                print(f"\n배치 {batch_num}/{total_batches}: {len(batch)}개 세그먼트 처리 중...")
+                    batch_num = batch_idx//batch_size + 1
+                    total_batches = (len(valid_segments) + batch_size - 1)//batch_size
+                    print(f"\n배치 {batch_num}/{total_batches}: {len(batch)}개 세그먼트 처리 중...")
 
-                try:
-                    # 배치 음성 인식
-                    if len(batch_audios) == 1:
-                        # 단일 세그먼트
-                        result = asr_model.generate(
-                            input=batch_audios[0],
-                            language=target_lang,
-                            use_itn=True,
-                            data_type="sound"
-                        )
-                        results = [result]
-                    else:
-                        # 다중 세그먼트 배치 처리
-                        try:
+                    try:
+                        # 배치 음성 인식
+                        if len(batch_audios) == 1:
+                            # 단일 세그먼트
                             result = asr_model.generate(
-                                input=batch_audios,
+                                input=batch_audios[0],
                                 language=target_lang,
                                 use_itn=True,
                                 data_type="sound"
                             )
-                            results = result if isinstance(result, list) else [result]
-                        except Exception as batch_error:
-                            # 배치 처리 실패 시 개별 처리
-                            print(f"  ⚠️  배치 처리 실패: {str(batch_error)[:50]}")
-                            print(f"  개별 처리로 전환...")
-                            results = []
-                            for i, audio in enumerate(batch_audios):
-                                try:
-                                    r = asr_model.generate(
-                                        input=audio,
-                                        language=target_lang,
-                                        use_itn=True,
-                                        data_type="sound"
-                                    )
-                                    results.append(r)
-                                except Exception as single_error:
-                                    print(f"  ⚠️  세그먼트 {i+1} 처리 실패: {str(single_error)[:30]}")
-                                    results.append(None)
+                            results = [result]
+                        else:
+                            # 다중 세그먼트 배치 처리
+                            try:
+                                result = asr_model.generate(
+                                    input=batch_audios,
+                                    language=target_lang,
+                                    use_itn=True,
+                                    data_type="sound"
+                                )
+                                results = result if isinstance(result, list) else [result]
+                            except Exception as batch_error:
+                                # 배치 처리 실패 시 개별 처리
+                                print(f"  ⚠️  배치 처리 실패: {str(batch_error)[:50]}")
+                                print(f"  개별 처리로 전환...")
+                                results = []
+                                for i, audio in enumerate(batch_audios):
+                                    try:
+                                        r = asr_model.generate(
+                                            input=audio,
+                                            language=target_lang,
+                                            use_itn=True,
+                                            data_type="sound"
+                                        )
+                                        results.append(r)
+                                    except Exception as single_error:
+                                        print(f"  ⚠️  세그먼트 {i+1} 처리 실패: {str(single_error)[:30]}")
+                                        results.append(None)
 
-                    # 결과 파싱
-                    for seg, result in zip(batch, results):
-                        try:
-                            if result is None:
+                        # 결과 파싱
+                        for seg, result in zip(batch, results):
+                            try:
+                                if result is None:
+                                    failed_segments.append(seg)
+                                    continue
+
+                                if isinstance(result, list) and len(result) > 0:
+                                    text = result[0].get('text', '') if isinstance(result[0], dict) else ''
+                                else:
+                                    text = ''
+
+                                # 메타데이터 제거
+                                clean_text = re.sub(r'<\|[^|]+\|>', '', text)
+                                clean_text = re.sub(r'<speaker_\d+>\s*', '', clean_text)
+                                clean_text = re.sub(r'\s+', ' ', clean_text).strip()
+
+                                if clean_text:
+                                    all_segments.append({
+                                        'start': seg['start'],
+                                        'end': seg['end'],
+                                        'text': clean_text
+                                    })
+                                    print(f"  ✓ [{seg['start']:.1f}s-{seg['end']:.1f}s] {clean_text[:80]}...")
+                                else:
+                                    print(f"  ⚠️  [{seg['start']:.1f}s-{seg['end']:.1f}s] 텍스트 없음")
+
+                            except Exception as parse_error:
+                                print(f"  ⚠️  결과 파싱 실패: {str(parse_error)}")
                                 failed_segments.append(seg)
-                                continue
 
-                            if isinstance(result, list) and len(result) > 0:
-                                text = result[0].get('text', '') if isinstance(result[0], dict) else ''
-                            else:
-                                text = ''
+                    except Exception as batch_critical_error:
+                        print(f"  ❌ 배치 처리 중 심각한 오류: {str(batch_critical_error)}")
+                        failed_segments.extend(batch)
 
-                            # 메타데이터 제거
-                            clean_text = re.sub(r'<\|[^|]+\|>', '', text)
-                            clean_text = re.sub(r'<speaker_\d+>\s*', '', clean_text)
-                            clean_text = re.sub(r'\s+', ' ', clean_text).strip()
-
-                            if clean_text:
-                                all_segments.append({
-                                    'start': seg['start'],
-                                    'end': seg['end'],
-                                    'text': clean_text
-                                })
-                                print(f"  ✓ [{seg['start']:.1f}s-{seg['end']:.1f}s] {clean_text[:80]}...")
-                            else:
-                                print(f"  ⚠️  [{seg['start']:.1f}s-{seg['end']:.1f}s] 텍스트 없음")
-
-                        except Exception as parse_error:
-                            print(f"  ⚠️  결과 파싱 실패: {str(parse_error)}")
-                            failed_segments.append(seg)
-
-                except Exception as batch_critical_error:
-                    print(f"  ❌ 배치 처리 중 심각한 오류: {str(batch_critical_error)}")
-                    failed_segments.extend(batch)
-
-            # 처리 결과 요약
+            # 처리 결과 요약 (병렬/순차 처리 공통)
             print(f"\n" + "="*60)
             print(f"처리 완료!")
             print(f"  - 성공: {len(all_segments)}개 세그먼트")
