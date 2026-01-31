@@ -393,7 +393,32 @@ class AudioProcessor:
             import re
             failed_segments = []
 
-            for batch_idx in range(0, len(valid_segments), batch_size):
+            # CPU 병렬 처리 옵션 (세그먼트가 많을 때만)
+            use_parallel = (device == "cpu" and len(valid_segments) >= 100)
+
+            if use_parallel:
+                # 병렬 처리 모듈 사용
+                try:
+                    from parallel_processor import process_segments_parallel
+                    all_segments = process_segments_parallel(
+                        valid_segments,
+                        target_lang,
+                        model_name,
+                        num_workers=None  # 자동 감지
+                    )
+                    # 실패한 세그먼트는 parallel_processor에서 처리
+                    failed_segments = []
+                except ImportError:
+                    print("⚠️  병렬 처리 모듈 없음 - 순차 처리로 전환")
+                    use_parallel = False
+                except Exception as parallel_error:
+                    print(f"⚠️  병렬 처리 실패: {str(parallel_error)[:100]}")
+                    print(f"   순차 처리로 전환...")
+                    use_parallel = False
+
+            if not use_parallel:
+                # 기존 순차/배치 처리
+                for batch_idx in range(0, len(valid_segments), batch_size):
                 batch = valid_segments[batch_idx:batch_idx + batch_size]
                 batch_audios = [seg['audio'] for seg in batch]
 
