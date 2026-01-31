@@ -99,7 +99,32 @@ pythonw main.py
 - 자막 파일: `원본파일명.srt` 또는 `원본파일명.vtt`
 - 로그 파일: `logs/sensevoice_gui_YYYYMMDD_HHMMSS.log`
 
+## GPU 지원 (선택사항)
+
+### 중요: Python 버전 호환성
+현재 **Python 3.14**를 사용 중인 경우, PyTorch CUDA 빌드가 아직 제공되지 않아 **CPU 모드로만 작동**합니다.
+
+### GPU 가속을 원하는 경우
+**권장: Python 3.11 또는 3.12로 다운그레이드**
+```bash
+# Python 3.11 또는 3.12 설치 후
+pip install torch torchaudio --index-url https://download.pytorch.org/whl/cu121
+```
+
+### 현재 환경 (Python 3.14)
+- ✅ CPU 모드로 정상 작동
+- ⚠️ GPU 가속은 Python 버전 다운그레이드 필요
+- ⏱️ 처리 속도: CPU 모드 (약 1x 실시간)
+
 ## 버전 정보
+
+### v1.2 (2026-01-31)
+- UI 크기 1.5배 확대 (1350x1200)
+- 폰트 크기 2배 확대 (가독성 향상)
+- 버튼 높이 통일 및 시작 버튼 강조
+- 로그 영역 2배 확대
+- 파일 리스트 좌측 정렬 및 전체 표시
+- Python 3.14 호환성 (CPU 모드)
 
 ### v1.1 (2026-01-24)
 - SenseVoice 메타데이터 태그 자동 제거

@@ -5,9 +5,10 @@ from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                              QHBoxLayout, QLabel, QRadioButton, QCheckBox,
                              QPushButton, QTextEdit, QButtonGroup, QFileDialog,
                              QMessageBox, QProgressBar, QFrame, QComboBox,
-                             QGraphicsDropShadowEffect, QSplitter, QGroupBox)
-from PyQt5.QtCore import Qt, QThread, pyqtSignal, QPropertyAnimation, QEasingCurve
-from PyQt5.QtGui import QFont, QTextCursor, QColor, QPalette, QLinearGradient, QBrush
+                             QGraphicsDropShadowEffect, QSplitter, QGroupBox,
+                             QListWidget, QAbstractItemView)
+from PyQt5.QtCore import Qt, QThread, pyqtSignal, QPropertyAnimation, QEasingCurve, QSize
+from PyQt5.QtGui import QFont, QTextCursor, QColor, QPalette, QLinearGradient, QBrush, QIcon
 import json
 
 
@@ -126,154 +127,155 @@ TRANSLATIONS = {
 }
 
 
-# ==================== Modern Style Sheet ====================
+# ==================== Modern Style Sheet (Neutral Dark / Zinc) ====================
 MODERN_STYLE = """
 QMainWindow {
-    background-color: #0f0f1a;
+    background-color: #18181b;  /* Zinc 950 */
 }
 
 QWidget {
-    color: #e0e0e0;
-    font-family: 'Segoe UI', 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
+    color: #f4f4f5;  /* Zinc 100 */
+    font-family: 'Pretendard', 'Segoe UI', 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
 }
 
 QGroupBox {
-    background-color: #1a1a2e;
-    border: 1px solid #2d2d44;
+    background-color: #27272a;  /* Zinc 900 */
+    border: 1px solid #3f3f46;  /* Zinc 700 */
     border-radius: 12px;
     margin-top: 12px;
     padding: 20px 15px 15px 15px;
     font-weight: bold;
-    font-size: 26px;
+    font-size: 16px; 
 }
 
 QGroupBox::title {
     subcontrol-origin: margin;
     subcontrol-position: top left;
     padding: 0 10px;
-    color: #8b8bff;
+    color: #818cf8;  /* Indigo 400 */
     font-weight: bold;
 }
 
 QLabel {
-    color: #c0c0c0;
-    font-size: 48px;
+    color: #f4f4f5;
+    font-size: 14px;
 }
 
 QRadioButton {
-    color: #b0b0b0;
+    color: #a1a1aa;  /* Zinc 400 */
     spacing: 8px;
-    font-size: 22px;
-    padding: 5px;
+    font-size: 14px;
+    padding: 4px;
 }
 
 QRadioButton::indicator {
-    width: 32px;
-    height: 32px;
-    border-radius: 16px;
-    border: 4px solid #4a4a6a;
-    background-color: #1a1a2e;
+    width: 18px;
+    height: 18px;
+    border-radius: 9px;
+    border: 2px solid #52525b;  /* Zinc 600 */
+    background-color: #18181b;
 }
 
 QRadioButton::indicator:checked {
-    background-color: #6c5ce7;
-    border-color: #6c5ce7;
+    background-color: #6366f1;  /* Indigo 500 */
+    border-color: #6366f1;
 }
 
 QRadioButton::indicator:hover {
-    border-color: #8b8bff;
+    border-color: #818cf8;
 }
 
 QCheckBox {
-    color: #b0b0b0;
+    color: #a1a1aa;
     spacing: 8px;
-    font-size: 22px;
-    padding: 5px;
+    font-size: 14px;
+    padding: 4px;
 }
 
 QCheckBox::indicator {
-    width: 36px;
-    height: 36px;
-    border-radius: 8px;
-    border: 4px solid #4a4a6a;
-    background-color: #1a1a2e;
+    width: 18px;
+    height: 18px;
+    border-radius: 4px;
+    border: 2px solid #52525b;
+    background-color: #18181b;
 }
 
 QCheckBox::indicator:checked {
-    background-color: #6c5ce7;
-    border-color: #6c5ce7;
+    background-color: #6366f1;
+    border-color: #6366f1;
 }
 
 QCheckBox::indicator:hover {
-    border-color: #8b8bff;
+    border-color: #818cf8;
 }
 
 QPushButton {
-    background-color: #2d2d44;
-    color: #e0e0e0;
+    background-color: #3f3f46;  /* Zinc 700 */
+    color: #f4f4f5;
     border: none;
     border-radius: 8px;
-    padding: 10px 20px;
-    font-size: 48px;
+    padding: 8px 16px;
+    font-size: 14px;
     font-weight: 500;
 }
 
 QPushButton:hover {
-    background-color: #3d3d5c;
+    background-color: #52525b;  /* Zinc 600 */
 }
 
 QPushButton:pressed {
-    background-color: #4d4d6c;
+    background-color: #27272a;
 }
 
 QPushButton:disabled {
-    background-color: #1a1a2e;
-    color: #505050;
+    background-color: #27272a;
+    color: #52525b;
+    border: 1px solid #3f3f46;
 }
 
 QPushButton#startButton {
     background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
-        stop:0 #6c5ce7, stop:1 #a55eea);
+        stop:0 #6366f1, stop:1 #8b5cf6);  /* Indigo to Violet */
     color: white;
-    font-size: 28px;
+    font-size: 16px;
     font-weight: bold;
-    padding: 12px 30px;
+    padding: 10px 24px;
     border-radius: 10px;
 }
 
 QPushButton#startButton:hover {
     background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
-        stop:0 #7c6cf7, stop:1 #b56efa);
+        stop:0 #818cf8, stop:1 #a78bfa);
 }
 
 QPushButton#startButton:disabled {
-    background: #2d2d44;
-    color: #505050;
+    background: #3f3f46;
+    color: #71717a;
 }
 
 QTextEdit {
-    background-color: #12121f;
-    color: #a0ffa0;
-    border: 1px solid #2d2d44;
+    background-color: #27272a;
+    color: #e4e4e7;
+    border: 1px solid #3f3f46;
     border-radius: 8px;
-    padding: 10px;
+    padding: 8px;
     font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
-    font-size: 22px;
-    selection-background-color: #6c5ce7;
+    font-size: 13px;
+    selection-background-color: #6366f1;
 }
 
 QComboBox {
-    background-color: #2d2d44;
-    color: #e0e0e0;
-    border: 1px solid #3d3d5c;
+    background-color: #3f3f46;
+    color: #f4f4f5;
+    border: 1px solid #52525b;
     border-radius: 6px;
     padding: 6px 12px;
-    font-size: 22px;
-    min-width: 100px;
+    font-size: 14px;
+    min-width: 80px;
 }
 
 QComboBox:hover {
-    border-color: #6c5ce7;
+    border-color: #6366f1;
 }
 
 QComboBox::drop-down {
@@ -285,32 +287,32 @@ QComboBox::down-arrow {
     image: none;
     border-left: 5px solid transparent;
     border-right: 5px solid transparent;
-    border-top: 6px solid #8b8bff;
+    border-top: 6px solid #818cf8;
     margin-right: 8px;
 }
 
 QComboBox QAbstractItemView {
-    background-color: #1a1a2e;
-    color: #e0e0e0;
-    selection-background-color: #6c5ce7;
-    border: 1px solid #3d3d5c;
+    background-color: #27272a;
+    color: #f4f4f5;
+    selection-background-color: #6366f1;
+    border: 1px solid #52525b;
     border-radius: 6px;
 }
 
 QScrollBar:vertical {
-    background-color: #1a1a2e;
-    width: 10px;
-    border-radius: 5px;
+    background-color: #27272a;
+    width: 8px;
+    border-radius: 4px;
 }
 
 QScrollBar::handle:vertical {
-    background-color: #3d3d5c;
-    border-radius: 5px;
+    background-color: #52525b;
+    border-radius: 4px;
     min-height: 30px;
 }
 
 QScrollBar::handle:vertical:hover {
-    background-color: #6c5ce7;
+    background-color: #71717a;
 }
 
 QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
@@ -318,7 +320,7 @@ QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
 }
 
 QProgressBar {
-    background-color: #1a1a2e;
+    background-color: #27272a;
     border: none;
     border-radius: 4px;
     height: 6px;
@@ -327,8 +329,30 @@ QProgressBar {
 
 QProgressBar::chunk {
     background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
-        stop:0 #6c5ce7, stop:1 #a55eea);
+        stop:0 #6366f1, stop:1 #8b5cf6);
     border-radius: 4px;
+}
+
+QListWidget {
+    background-color: transparent;
+    border: none;
+    color: #f4f4f5;
+    font-size: 16px;
+    outline: none;
+}
+
+QListWidget::item {
+    padding: 8px;
+    border-radius: 6px;
+}
+
+QListWidget::item:hover {
+    background-color: #3f3f46;
+}
+
+QListWidget::item:selected {
+    background-color: #52525b;
+    color: white;
 }
 """
 
@@ -336,6 +360,8 @@ QProgressBar::chunk {
 class ProcessThread(QThread):
     """비동기 처리를 위한 스레드"""
     progress_signal = pyqtSignal(str)
+    # index: 파일 인덱스, status: 'running', 'done', 'error'
+    item_status_signal = pyqtSignal(int, str)
     finished_signal = pyqtSignal(bool, str)
 
     def __init__(self, video_paths, options, lang='ko'):
@@ -355,7 +381,10 @@ class ProcessThread(QThread):
             processor = AudioProcessor(self.options)
             subtitle_gen = SubtitleGenerator(self.options)
 
-            for video_path in self.video_paths:
+            for i, video_path in enumerate(self.video_paths):
+                # 시작 상태 전송
+                self.item_status_signal.emit(i, 'running')
+                
                 try:
                     self.progress_signal.emit(f"\n📁 {self.t['processing_start']}: {os.path.basename(video_path)}")
 
@@ -372,11 +401,17 @@ class ProcessThread(QThread):
 
                     if os.path.exists(audio_path):
                         os.remove(audio_path)
+                    
+                    # 완료 상태 전송
+                    self.item_status_signal.emit(i, 'done')
 
                 except Exception as file_error:
                     error_detail = traceback.format_exc()
                     self.progress_signal.emit(f"\n  ❌ {self.t['error']}: {os.path.basename(video_path)}")
                     self.progress_signal.emit(f"  {str(file_error)}")
+                    
+                    # 에러 상태 전송
+                    self.item_status_signal.emit(i, 'error')
                     continue
 
             self.finished_signal.emit(True, self.t['all_complete'])
@@ -389,7 +424,7 @@ class ProcessThread(QThread):
 
 
 class DropArea(QFrame):
-    """모던 드래그 앤 드롭 영역"""
+    """모던 드래그 앤 드롭 영역 (QListWidget 포함)"""
     def __init__(self, parent=None):
         super().__init__(parent)
         self.parent_gui = parent
@@ -397,72 +432,148 @@ class DropArea(QFrame):
         self.setup_ui()
         
     def setup_ui(self):
-        self.setMin_height(360)  # 180 -> 360 (2배)
+        self.setMinimumHeight(240)
         self.setStyleSheet("""
             DropArea {
-                background-color: #1a1a2e;
-                border: 2px dashed #3d3d5c;
+                background-color: #18181b;
+                border: 2px dashed #71717a;  /* Zinc 500 */
                 border-radius: 16px;
             }
             DropArea:hover {
-                border-color: #6c5ce7;
-                background-color: #1f1f35;
+                border-color: #6366f1;
+                background-color: #27272a;
             }
         """)
 
-        layout = QVBoxLayout(self)
-        layout.setAlignment(Qt.AlignTop | Qt.AlignLeft)  # 좌측 상단 정렬
-        layout.setSpacing(10)
-        layout.setContentsMargins(20, 20, 20, 20)  # 여백 추가
+        self.layout = QVBoxLayout(self)
+        self.layout.setAlignment(Qt.AlignCenter)
+        self.layout.setSpacing(16)
+        self.layout.setContentsMargins(40, 40, 40, 40)
+
+        # 1. 안내 메시지 컨테이너 (아이콘 + 텍스트)
+        self.msg_container = QWidget()
+        msg_layout = QVBoxLayout(self.msg_container)
+        msg_layout.setContentsMargins(0, 0, 0, 0)
+        msg_layout.setSpacing(10)
 
         # 아이콘
         self.icon_label = QLabel("🎬")
-        self.icon_label.setStyleSheet("font-size: 96px; background: transparent; border: none;")
-        self.icon_label.setAlignment(Qt.AlignLeft)  # 좌측 정렬
-        layout.addWidget(self.icon_label)
+        self.icon_label.setStyleSheet("font-size: 64px; background: transparent; border: none;")
+        self.icon_label.setAlignment(Qt.AlignCenter)
+        msg_layout.addWidget(self.icon_label)
 
-        # 텍스트
+        # 메인 텍스트
         self.text_label = QLabel()
         self.text_label.setStyleSheet("""
-            font-size: 56px;
-            color: #8080a0;
+            font-size: 24px;
+            color: #f4f4f5;
             background: transparent;
             border: none;
-            font-weight: 500;
+            font-weight: bold;
         """)
-        self.text_label.setAlignment(Qt.AlignLeft)  # 좌측 정렬
-        self.text_label.setWordWrap(True)  # 줄바꿈 활성화
-        layout.addWidget(self.text_label)
+        self.text_label.setAlignment(Qt.AlignCenter)
+        self.text_label.setWordWrap(True)
+        msg_layout.addWidget(self.text_label)
 
         # 서브 텍스트
         self.sub_label = QLabel()
         self.sub_label.setStyleSheet("""
-            font-size: 44px;
-            color: #505070;
+            font-size: 16px;
+            color: #a1a1aa;
             background: transparent;
             border: none;
         """)
-        self.sub_label.setAlignment(Qt.AlignLeft)  # 좌측 정렬
-        self.sub_label.setWordWrap(True)  # 줄바꿈 활성화
-        layout.addWidget(self.sub_label)
+        self.sub_label.setAlignment(Qt.AlignCenter)
+        self.sub_label.setWordWrap(True)
+        msg_layout.addWidget(self.sub_label)
 
-        layout.addStretch()  # 하단에 여백 추가
+        self.layout.addWidget(self.msg_container)
 
-    def setMin_height(self, h):
-        self.setMinimumHeight(h)
+        # 2. 파일 리스트 위젯 (초기엔 숨김)
+        self.file_list_widget = QListWidget()
+        self.file_list_widget.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        self.file_list_widget.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.file_list_widget.setSelectionMode(QAbstractItemView.NoSelection)
+        self.file_list_widget.setFocusPolicy(Qt.NoFocus)
+        self.file_list_widget.hide()
+        self.layout.addWidget(self.file_list_widget)
 
     def update_text(self, main_text, sub_text="", icon="🎬"):
         self.icon_label.setText(icon)
         self.text_label.setText(main_text)
         self.sub_label.setText(sub_text)
 
+    def update_files(self, files, header_text=""):
+        """파일 목록 업데이트 및 뷰 전환"""
+        if not files:
+            # 파일이 없으면 안내 메시지 표시
+            self.file_list_widget.hide()
+            self.msg_container.show()
+            self.layout.setAlignment(Qt.AlignCenter)
+        else:
+            # 파일이 있으면 리스트 위젯 표시
+            self.msg_container.hide()
+            self.file_list_widget.show()
+            # 레이아웃 정렬을 꽉 채우기로 변경 (리스트가 확장되도록)
+            self.layout.setAlignment(Qt.AlignJustify) 
+            
+            self.file_list_widget.clear()
+            
+            # 헤더 아이템 (선택사항 - 아이콘 대신 텍스트로 표시)
+            if header_text:
+                self.file_list_widget.addItem(f"📂 {header_text}")
+
+            for i, f in enumerate(files):
+                filename = os.path.basename(f)
+                self.file_list_widget.addItem(f"{i+1}. {filename}")
+                self.set_item_status(i, 'wait') # 초기 상태
+
+    def set_item_status(self, index, status):
+        """특정 인덱스의 아이템 상태 업데이트"""
+        # 헤더가 있는 경우 인덱스 조정 (헤더가 1개 있으므로 +1)
+        # update_files에서 헤더를 추가했으므로 실제 파일 인덱스는 index + 1
+        list_index = index + 1 
+        
+        if list_index >= self.file_list_widget.count():
+            return
+
+        item = self.file_list_widget.item(list_index)
+        original_text = item.text()
+        
+        # 이미 상태 아이콘이 있다면 제거하고 순수 파일명만 추출
+        if any(x in original_text for x in ['⏳', '✅', '❌']):
+            # "번호. 파일명" 형태 유지를 위해
+            try:
+                parts = original_text.split('. ', 1)
+                if len(parts) > 1:
+                    base_text = f"{index+1}. {parts[1].strip()}"
+                else:
+                    base_text = original_text # 예외 처리
+            except:
+                base_text = original_text
+        else:
+            base_text = original_text
+
+        if status == 'running':
+            item.setText(f"⏳ {base_text}")
+            item.setForeground(QColor("#facc15")) # Yellow
+        elif status == 'done':
+            item.setText(f"✅ {base_text}")
+            item.setForeground(QColor("#4ade80")) # Green
+        elif status == 'error':
+            item.setText(f"❌ {base_text}")
+            item.setForeground(QColor("#f87171")) # Red
+        else: # wait
+            item.setText(base_text)
+            item.setForeground(QColor("#f4f4f5")) # 기본색
+
     def dragEnterEvent(self, event):
         if event.mimeData().hasUrls():
             event.accept()
             self.setStyleSheet("""
                 DropArea {
-                    background-color: #252540;
-                    border: 2px solid #6c5ce7;
+                    background-color: #27272a;
+                    border: 2px solid #6366f1;
                     border-radius: 16px;
                 }
             """)
@@ -472,13 +583,13 @@ class DropArea(QFrame):
     def dragLeaveEvent(self, event):
         self.setStyleSheet("""
             DropArea {
-                background-color: #1a1a2e;
-                border: 2px dashed #3d3d5c;
+                background-color: #18181b;
+                border: 2px dashed #71717a;
                 border-radius: 16px;
             }
             DropArea:hover {
-                border-color: #6c5ce7;
-                background-color: #1f1f35;
+                border-color: #6366f1;
+                background-color: #27272a;
             }
         """)
 
@@ -572,14 +683,14 @@ class SenseVoiceGUI(QMainWindow):
     def init_ui(self):
         """UI 초기화"""
         self.setWindowTitle(self.tr('window_title'))
-        self.setGeometry(100, 100, 1350, 1200)  # 1.5배: 900 -> 1350, 800 -> 1200
+        self.setGeometry(100, 100, 1000, 900) # 더 적절한 기본 크기
         self.setStyleSheet(MODERN_STYLE)
 
         # 중앙 위젯
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
         main_layout = QVBoxLayout(central_widget)
-        main_layout.setSpacing(16)
+        main_layout.setSpacing(12)
         main_layout.setContentsMargins(24, 24, 24, 24)
 
         # 헤더 (타이틀 + 언어 선택)
@@ -587,9 +698,9 @@ class SenseVoiceGUI(QMainWindow):
         
         title_label = QLabel("🎬 SenseVoice")
         title_label.setStyleSheet("""
-            font-size: 48px; 
+            font-size: 28px; 
             font-weight: bold; 
-            color: #ffffff;
+            color: #f4f4f5;
             background: transparent;
         """)
         header_layout.addWidget(title_label)
@@ -601,7 +712,7 @@ class SenseVoiceGUI(QMainWindow):
         lang_select_layout.setSpacing(8)
         
         self.ui_lang_label = QLabel(self.tr('ui_language') + ":")
-        self.ui_lang_label.setStyleSheet("color: #8080a0; font-size: 22px;")
+        self.ui_lang_label.setStyleSheet("color: #a1a1aa; font-size: 14px;")
         lang_select_layout.addWidget(self.ui_lang_label)
         
         self.ui_lang_combo = QComboBox()
@@ -764,7 +875,7 @@ class SenseVoiceGUI(QMainWindow):
         button_layout.setSpacing(10)
 
         # 모든 버튼 높이 통일
-        button_height = 60
+        button_height = 50
 
         self.add_file_btn = QPushButton(f"📄 {self.tr('add_files')}")
         self.add_file_btn.clicked.connect(self.select_files)
@@ -806,11 +917,11 @@ class SenseVoiceGUI(QMainWindow):
         # 상태 표시
         self.status_label = QLabel(self.tr('ready'))
         self.status_label.setStyleSheet("""
-            color: #50fa7b; 
+            color: #4ade80;  /* Green 400 */
             font-weight: bold; 
-            font-size: 26px;
+            font-size: 16px;
             padding: 8px;
-            background-color: #1a1a2e;
+            background-color: #27272a;
             border-radius: 6px;
         """)
         self.status_label.setAlignment(Qt.AlignCenter)
@@ -818,7 +929,7 @@ class SenseVoiceGUI(QMainWindow):
 
         # 로그 영역
         self.log_label = QLabel(f"📋 {self.tr('log')}")
-        self.log_label.setStyleSheet("font-size: 48px; font-weight: bold; color: #8b8bff;")
+        self.log_label.setStyleSheet("font-size: 20px; font-weight: bold; color: #f4f4f5;")
         main_layout.addWidget(self.log_label)
 
         self.log_text = QTextEdit()
@@ -857,22 +968,14 @@ class SenseVoiceGUI(QMainWindow):
 
     def update_file_list_display(self):
         """파일 리스트 표시 업데이트"""
-        if not self.video_paths:
-            self.drop_area.update_text(
-                self.tr('drop_area'),
-                f"{self.tr('drop_area_or')} {self.tr('add_files')} / {self.tr('add_folder')}"
-            )
+        count = len(self.video_paths)
+        if count == 0:
+            self.drop_area.update_files([])
             return
 
-        count = len(self.video_paths)
-        # 모든 파일 표시 (제한 없음, 스크롤 활성화)
-        file_list = "\n".join([f"{i+1}. {os.path.basename(f)}" for i, f in enumerate(self.video_paths)])
-
-        self.drop_area.update_text(
-            f"📁 {count} {self.tr('files_selected')}",
-            file_list,
-            ""  # 아이콘은 제목에 포함
-        )
+        # QListWidget 업데이트 호출
+        header_text = f"{count} {self.tr('files_selected')}"
+        self.drop_area.update_files(self.video_paths, header_text)
 
     def select_files(self):
         """파일 선택 다이얼로그"""
@@ -937,23 +1040,24 @@ class SenseVoiceGUI(QMainWindow):
         self.cancel_btn.setEnabled(True)
         self.status_label.setText(self.tr('processing'))
         self.status_label.setStyleSheet("""
-            color: #f1c40f; 
+            color: #f9e2af; 
             font-weight: bold; 
-            font-size: 26px;
+            font-size: 16px;
             padding: 8px;
-            background-color: #1a1a2e;
+            background-color: #252538;
             border-radius: 6px;
         """)
-
-        self.process_thread = ProcessThread(self.video_paths, options, self.current_lang)
-        self.process_thread.progress_signal.connect(self.add_log)
-        self.process_thread.finished_signal.connect(self.processing_finished)
-        self.process_thread.start()
+        # 스레드 설정
+        self.thread = ProcessThread(self.video_paths, options, self.current_lang)
+        self.thread.progress_signal.connect(self.add_log) # Changed from update_log to add_log to match existing method
+        self.thread.item_status_signal.connect(self.drop_area.set_item_status) # 상태 시그널 연결
+        self.thread.finished_signal.connect(self.processing_finished) # Changed from process_finished to processing_finished to match existing method
+        self.thread.start()
 
     def cancel_processing(self):
         """처리 취소"""
-        if hasattr(self, 'process_thread') and self.process_thread.isRunning():
-            self.process_thread.terminate()
+        if hasattr(self, 'thread') and self.thread.isRunning(): # Changed from process_thread to thread
+            self.thread.terminate() # Changed from process_thread to thread
             self.add_log(f"\n⚠️ {self.tr('cancelled')}")
             self.processing_finished(False, self.tr('cancelled'))
 
@@ -965,22 +1069,22 @@ class SenseVoiceGUI(QMainWindow):
         if success:
             self.status_label.setText(self.tr('completed'))
             self.status_label.setStyleSheet("""
-                color: #50fa7b; 
+                color: #a6e3a1; 
                 font-weight: bold; 
-                font-size: 26px;
+                font-size: 16px;
                 padding: 8px;
-                background-color: #1a1a2e;
+                background-color: #252538;
                 border-radius: 6px;
             """)
             QMessageBox.information(self, self.tr('complete'), message)
         else:
             self.status_label.setText(self.tr('error'))
             self.status_label.setStyleSheet("""
-                color: #ff5555; 
+                color: #f38ba8; 
                 font-weight: bold; 
-                font-size: 26px;
+                font-size: 16px;
                 padding: 8px;
-                background-color: #1a1a2e;
+                background-color: #252538;
                 border-radius: 6px;
             """)
 
@@ -1057,17 +1161,17 @@ def main():
     
     # 다크 팔레트 설정
     palette = QPalette()
-    palette.setColor(QPalette.Window, QColor(15, 15, 26))
-    palette.setColor(QPalette.WindowText, QColor(224, 224, 224))
-    palette.setColor(QPalette.Base, QColor(26, 26, 46))
-    palette.setColor(QPalette.AlternateBase, QColor(45, 45, 68))
-    palette.setColor(QPalette.ToolTipBase, QColor(224, 224, 224))
-    palette.setColor(QPalette.ToolTipText, QColor(224, 224, 224))
-    palette.setColor(QPalette.Text, QColor(224, 224, 224))
-    palette.setColor(QPalette.Button, QColor(45, 45, 68))
-    palette.setColor(QPalette.ButtonText, QColor(224, 224, 224))
+    palette.setColor(QPalette.Window, QColor(30, 30, 46))
+    palette.setColor(QPalette.WindowText, QColor(205, 214, 244))
+    palette.setColor(QPalette.Base, QColor(24, 24, 37))
+    palette.setColor(QPalette.AlternateBase, QColor(49, 50, 68))
+    palette.setColor(QPalette.ToolTipBase, QColor(205, 214, 244))
+    palette.setColor(QPalette.ToolTipText, QColor(205, 214, 244))
+    palette.setColor(QPalette.Text, QColor(205, 214, 244))
+    palette.setColor(QPalette.Button, QColor(49, 50, 68))
+    palette.setColor(QPalette.ButtonText, QColor(205, 214, 244))
     palette.setColor(QPalette.BrightText, QColor(255, 255, 255))
-    palette.setColor(QPalette.Highlight, QColor(108, 92, 231))
+    palette.setColor(QPalette.Highlight, QColor(124, 77, 255))
     palette.setColor(QPalette.HighlightedText, QColor(255, 255, 255))
     app.setPalette(palette)
 
