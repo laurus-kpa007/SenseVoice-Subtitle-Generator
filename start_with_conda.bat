@@ -8,4 +8,4 @@ if errorlevel 1 (
 )
 
 echo Starting SenseVoice GUI...
-start "" pythonw main.py
+python main.py
