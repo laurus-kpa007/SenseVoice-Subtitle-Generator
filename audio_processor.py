@@ -225,6 +225,7 @@ class AudioProcessor:
 
             try:
                 vad_kwargs = self.get_vad_kwargs()
+                print(f"   VAD 설정: {vad_kwargs}")
 
                 vad_model = AutoModel(
                     model="fsmn-vad",
@@ -238,9 +239,17 @@ class AudioProcessor:
                 raise Exception(f"VAD 모델 로드 실패: {str(vad_load_error)}")
 
             try:
-                vad_result = vad_model.generate(input=audio_path)
+                # VAD kwargs 적용
+                if vad_kwargs:
+                    vad_result = vad_model.generate(input=audio_path, **vad_kwargs)
+                else:
+                    vad_result = vad_model.generate(input=audio_path)
                 print(f"   VAD 완료! 결과 타입: {type(vad_result)}")
-                print(f"   VAD 결과 내용 (첫 200자): {str(vad_result)[:200]}")
+                # str() 대신 repr() 사용하여 안전하게 출력
+                try:
+                    print(f"   VAD 결과 구조: {repr(vad_result)[:300]}")
+                except:
+                    print(f"   VAD 결과 출력 불가 - 타입만 확인: {type(vad_result)}")
 
             except RuntimeError as cuda_error:
                 if "CUDA" in str(cuda_error):
@@ -257,29 +266,45 @@ class AudioProcessor:
             # VAD 세그먼트 추출
             vad_segments = []
             try:
-                if isinstance(vad_result, list) and len(vad_result) > 0:
+                # vad_result가 None인지 먼저 확인
+                if vad_result is None:
+                    print(f"   ⚠️  VAD 결과가 None입니다.")
+                elif isinstance(vad_result, list) and len(vad_result) > 0:
                     vad_data = vad_result[0]
-                    if isinstance(vad_data, dict) and 'value' in vad_data:
-                        # value는 [[start_ms, end_ms], ...] 형태
-                        segments_list = vad_data['value']
-                        print(f"   VAD 세그먼트 수: {len(segments_list)}")
+                    print(f"   VAD 데이터 타입: {type(vad_data)}")
 
-                        for seg in segments_list:
-                            if isinstance(seg, (list, tuple)) and len(seg) >= 2:
-                                start_ms, end_ms = seg[0], seg[1]
-                                vad_segments.append({
-                                    'start': start_ms / 1000.0,  # 밀리초 -> 초
-                                    'end': end_ms / 1000.0
-                                })
+                    if isinstance(vad_data, dict):
+                        print(f"   VAD 딕셔너리 키: {vad_data.keys()}")
 
-                        print(f"   VAD로 {len(vad_segments)}개 음성 구간 탐지됨")
-                        for idx, seg in enumerate(vad_segments[:5]):  # 처음 5개만 출력
-                            print(f"     세그먼트 {idx}: {seg['start']:.2f}s ~ {seg['end']:.2f}s")
-                        if len(vad_segments) > 5:
-                            print(f"     ... 외 {len(vad_segments)-5}개")
+                        if 'value' in vad_data:
+                            # value는 [[start_ms, end_ms], ...] 형태
+                            segments_list = vad_data['value']
+                            print(f"   VAD 세그먼트 수: {len(segments_list)}")
+
+                            for seg in segments_list:
+                                if isinstance(seg, (list, tuple)) and len(seg) >= 2:
+                                    start_ms, end_ms = seg[0], seg[1]
+                                    vad_segments.append({
+                                        'start': start_ms / 1000.0,  # 밀리초 -> 초
+                                        'end': end_ms / 1000.0
+                                    })
+
+                            print(f"   VAD로 {len(vad_segments)}개 음성 구간 탐지됨")
+                            for idx, seg in enumerate(vad_segments[:5]):  # 처음 5개만 출력
+                                print(f"     세그먼트 {idx}: {seg['start']:.2f}s ~ {seg['end']:.2f}s")
+                            if len(vad_segments) > 5:
+                                print(f"     ... 외 {len(vad_segments)-5}개")
+                        else:
+                            print(f"   ⚠️  VAD 딕셔너리에 'value' 키가 없습니다.")
+                    else:
+                        print(f"   ⚠️  VAD 데이터가 딕셔너리가 아닙니다: {type(vad_data)}")
+                else:
+                    print(f"   ⚠️  VAD 결과가 예상과 다른 형태입니다: {type(vad_result)}")
 
             except Exception as parse_error:
-                print(f"   ⚠️  VAD 결과 파싱 경고: {str(parse_error)}")
+                import traceback
+                print(f"   ⚠️  VAD 결과 파싱 오류:")
+                print(traceback.format_exc())
                 vad_segments = []
 
             # VAD 세그먼트가 없으면 전체를 하나로
