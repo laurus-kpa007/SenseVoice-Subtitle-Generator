@@ -104,17 +104,42 @@ pythonw main.py
 ### 중요: Python 버전 호환성
 현재 **Python 3.14**를 사용 중인 경우, PyTorch CUDA 빌드가 아직 제공되지 않아 **CPU 모드로만 작동**합니다.
 
-### GPU 가속을 원하는 경우
-**권장: Python 3.11 또는 3.12로 다운그레이드**
+### GPU 가속 설정 방법
+
+#### 방법 1: Conda 환경 사용 (권장 - 기존 Python 유지)
 ```bash
-# Python 3.11 또는 3.12 설치 후
+# 1. setup_python312_env.bat 실행 (자동 설치)
+setup_python312_env.bat
+
+# 2. 이후 실행 시
+run_sensevoice.bat
+```
+
+#### 방법 2: Python 재설치
+1. **Python 3.12 다운로드**: https://www.python.org/downloads/
+2. **설치 시 "Add Python to PATH" 체크** ✓
+3. **패키지 재설치**:
+```bash
+cd d:\Python\SenseVoice
+pip install -r requirements.txt
 pip install torch torchaudio --index-url https://download.pytorch.org/whl/cu121
+pip install -U funasr modelscope python-Levenshtein
+```
+
+#### 방법 3: 수동 Conda 환경 생성
+```bash
+conda create -n sensevoice python=3.12 -y
+conda activate sensevoice
+cd d:\Python\SenseVoice
+pip install -r requirements.txt
+pip install torch torchaudio --index-url https://download.pytorch.org/whl/cu121
+pip install -U funasr modelscope python-Levenshtein
 ```
 
 ### 현재 환경 (Python 3.14)
 - ✅ CPU 모드로 정상 작동
-- ⚠️ GPU 가속은 Python 버전 다운그레이드 필요
-- ⏱️ 처리 속도: CPU 모드 (약 1x 실시간)
+- ⚠️ GPU 가속은 Python 3.12 환경 필요
+- ⏱️ 처리 속도: CPU 모드 (약 1x 실시간) vs GPU 모드 (약 15x 실시간)
 
 ## 버전 정보
 
