@@ -394,7 +394,9 @@ class AudioProcessor:
             failed_segments = []
 
             # CPU 병렬 처리 옵션 (세그먼트가 많을 때만)
-            use_parallel = (device == "cpu" and len(valid_segments) >= 100)
+            # 현재 병렬 처리는 모델 로드 락 문제로 비활성화
+            # TODO: 모델 공유 메커니즘 구현 필요
+            use_parallel = False  # (device == "cpu" and len(valid_segments) >= 100)
 
             if use_parallel:
                 # 병렬 처리 모듈 사용
