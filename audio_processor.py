@@ -240,6 +240,7 @@ class AudioProcessor:
             try:
                 vad_result = vad_model.generate(input=audio_path)
                 print(f"   VAD 완료! 결과 타입: {type(vad_result)}")
+                print(f"   VAD 결과 내용 (첫 200자): {str(vad_result)[:200]}")
 
             except RuntimeError as cuda_error:
                 if "CUDA" in str(cuda_error):
@@ -248,7 +249,10 @@ class AudioProcessor:
                     raise Exception(f"VAD 실행 실패: {str(cuda_error)}")
 
             except Exception as vad_error:
-                raise Exception(f"VAD 음성 구간 탐지 실패: {str(vad_error)}")
+                import traceback
+                error_detail = traceback.format_exc()
+                print(f"   VAD 오류 상세:\n{error_detail}")
+                raise Exception(f"VAD 음성 구간 탐지 실패: {repr(vad_error)}")
 
             # VAD 세그먼트 추출
             vad_segments = []
