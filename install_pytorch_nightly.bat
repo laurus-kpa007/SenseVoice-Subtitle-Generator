@@ -10,7 +10,7 @@ echo Press Ctrl+C to cancel, or
 pause
 
 echo.
-echo [1/2] Activating sensevoice environment...
+echo [1/3] Activating sensevoice environment...
 call C:\Users\lauru\miniconda3\Scripts\activate.bat C:\Users\lauru\miniconda3\envs\sensevoice
 if errorlevel 1 (
     echo Error: Failed to activate sensevoice environment
@@ -20,9 +20,13 @@ if errorlevel 1 (
 )
 
 echo.
-echo [2/2] Installing PyTorch nightly with CUDA 12.4...
+echo [2/3] Installing PyTorch nightly with CUDA 12.4...
 pip uninstall -y torch torchaudio
-pip install --pre torch torchaudio --index-url https://download.pytorch.org/whl/nightly/cu124
+pip install --pre torch --index-url https://download.pytorch.org/whl/nightly/cu124
+
+echo.
+echo [3/3] Installing torchaudio (stable version compatible with nightly)...
+pip install torchaudio --index-url https://download.pytorch.org/whl/cu124
 
 echo.
 echo ========================================
