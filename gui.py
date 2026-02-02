@@ -16,7 +16,7 @@ import json
 TRANSLATIONS = {
     'ko': {
         'window_title': 'SenseVoice 자막 생성기',
-        'drop_area': '동영상 파일을 여기에 드래그하세요',
+        'drop_area': '파일을 드래그해주세요.',
         'drop_area_or': '또는',
         'processing_speed': '처리 속도',
         'fast': '빠름',
@@ -432,7 +432,7 @@ class DropArea(QFrame):
         self.setup_ui()
         
     def setup_ui(self):
-        self.setMinimumHeight(240)
+        self.setFixedHeight(120)
         self.setStyleSheet("""
             DropArea {
                 background-color: #18181b;
@@ -448,7 +448,7 @@ class DropArea(QFrame):
         self.layout = QVBoxLayout(self)
         self.layout.setAlignment(Qt.AlignCenter)
         self.layout.setSpacing(16)
-        self.layout.setContentsMargins(40, 40, 40, 40)
+        self.layout.setContentsMargins(20, 10, 20, 10)
 
         # 1. 안내 메시지 컨테이너 (아이콘 + 텍스트)
         self.msg_container = QWidget()
