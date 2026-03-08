@@ -4,12 +4,15 @@
 
 SenseVoice(FunASR)를 사용하여 동영상 파일에서 자동으로 자막을 생성하는 GUI 프로그램입니다.
 
+Whisper와 달리 SenseVoice는 GPU 없이 **CPU만으로도 최대 27배 실시간 속도**로 자막을 생성합니다. 2시간 30분 영상을 약 5분 만에 처리할 수 있습니다.
+
 ![Python](https://img.shields.io/badge/Python-3.12+-blue)
 ![License](https://img.shields.io/badge/License-MIT-green)
 ![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20Mac-lightgrey)
 
 ## 주요 기능
 
+- **초고속 처리** - Whisper 대비 압도적 속도, CPU만으로 최대 27x realtime (2시간 30분 영상 → 약 5분)
 - **자동 자막 생성** - MP4, AVI, MKV, MOV, FLV, WMV, WEBM, M4V 등 다양한 동영상 형식 지원
 - **다국어 지원** - 한국어, 영어, 일본어 등 50개 이상 언어 자동 감지
 - **감정 인식** - 음성의 감정(기쁨, 슬픔, 분노 등)을 감지하여 자막에 태그 추가
@@ -20,7 +23,7 @@ SenseVoice(FunASR)를 사용하여 동영상 파일에서 자동으로 자막을
 - **EBU R128 정규화** - 일정한 볼륨으로 정규화하여 인식률 향상
 - **배치 처리** - 폴더 단위 일괄 처리 지원
 - **멀티스레드 병렬 처리** - CPU 모드에서 다중 스레드를 활용한 고속 처리
-- **GPU 가속** - NVIDIA CUDA를 활용한 최대 15배 빠른 처리
+- **GPU 가속** - NVIDIA CUDA GPU 사용 시 추가 가속 가능
 - **드래그 앤 드롭** - 파일을 끌어다 놓기만 하면 자동 추가
 - **이중 언어 UI** - 한국어/영어 인터페이스 전환 지원
 - **설정 자동 저장** - 모든 옵션이 자동으로 저장되어 다음 실행 시 유지
@@ -141,12 +144,21 @@ pip install torch torchaudio --index-url https://download.pytorch.org/whl/cu121
 pip install -U funasr modelscope python-Levenshtein
 ```
 
-### 성능 비교
+### 실측 성능 (CPU, MDX 음성분리 ON)
 
-| 하드웨어 | 1분 영상 | 1시간 영상 | 배치 크기 |
-|---------|---------|-----------|----------|
-| CPU only | ~60초 | ~60분 | 1 |
-| GPU (RTX 5070 Ti) | ~4초 | ~4분 | 8 |
+> Whisper는 CPU에서 1x 이하의 실시간 속도가 일반적이지만, SenseVoice는 CPU만으로도 **최대 27x realtime**을 달성합니다.
+
+| 영상 길이 | 처리 시간 | 속도 | 비고 |
+|----------|----------|------|------|
+| 143분 (2h 23m) | 5분 20초 | **26.8x realtime** | MDX 음성분리 포함 |
+| 148분 (2h 28m) | 5분 21초 | **27.8x realtime** | MDX 음성분리 포함 |
+
+**단계별 소요 시간 (평균):**
+| 단계 | 소요 시간 | 비율 |
+|------|----------|------|
+| 오디오 추출 | ~1분 30초 | 28% |
+| ASR 음성 인식 | ~3분 50초 | 72% |
+| 자막 생성 | <1초 | ~0% |
 
 > 자세한 성능 최적화 정보는 [PERFORMANCE_GUIDE.md](PERFORMANCE_GUIDE.md)를 참고하세요.
 

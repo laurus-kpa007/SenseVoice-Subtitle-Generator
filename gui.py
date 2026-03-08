@@ -371,37 +371,118 @@ class ProcessThread(QThread):
         self.lang = lang
         self.t = TRANSLATIONS[lang]
 
+    def _init_log_file(self):
+        """로그 파일 초기화"""
+        log_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'logs')
+        os.makedirs(log_dir, exist_ok=True)
+        log_filename = datetime.now().strftime('sensevoice_gui_%Y%m%d_%H%M%S.log')
+        self.log_path = os.path.join(log_dir, log_filename)
+
+    def _write_log(self, message):
+        """로그 파일에 기록"""
+        try:
+            timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            with open(self.log_path, 'a', encoding='utf-8') as f:
+                f.write(f"[{timestamp}] {message}\n")
+        except Exception:
+            pass
+
+    @staticmethod
+    def _format_duration(seconds):
+        """초를 읽기 쉬운 형식으로 변환"""
+        if seconds < 60:
+            return f"{seconds:.1f}s"
+        minutes = int(seconds // 60)
+        secs = seconds % 60
+        return f"{minutes}m {secs:.1f}s"
+
+    @staticmethod
+    def _get_video_duration(video_path):
+        """동영상 길이(초)를 반환"""
+        try:
+            import subprocess
+            result = subprocess.run(
+                ['ffprobe', '-v', 'quiet', '-show_entries', 'format=duration',
+                 '-of', 'default=noprint_wrappers=1:nokey=1', video_path],
+                capture_output=True, text=True, timeout=10
+            )
+            return float(result.stdout.strip())
+        except Exception:
+            return None
+
     def run(self):
         """실제 처리 작업 실행"""
         try:
             from audio_processor import AudioProcessor
             from subtitle_generator import SubtitleGenerator
             import traceback
+            import time
+
+            self._init_log_file()
 
             processor = AudioProcessor(self.options)
             subtitle_gen = SubtitleGenerator(self.options)
 
+            self._write_log(f"=== Processing started: {len(self.video_paths)} file(s) ===")
+            self._write_log(f"Options: {self.options}")
+            batch_start = time.time()
+
             for i, video_path in enumerate(self.video_paths):
                 # 시작 상태 전송
                 self.item_status_signal.emit(i, 'running')
-                
+
                 try:
-                    self.progress_signal.emit(f"\n📁 {self.t['processing_start']}: {os.path.basename(video_path)}")
+                    filename = os.path.basename(video_path)
+                    self.progress_signal.emit(f"\n📁 {self.t['processing_start']}: {filename}")
+
+                    video_duration = self._get_video_duration(video_path)
+                    duration_str = self._format_duration(video_duration) if video_duration else "unknown"
+                    self._write_log(f"--- [{i+1}/{len(self.video_paths)}] {filename} (duration: {duration_str}) ---")
+
+                    file_start = time.time()
 
                     self.progress_signal.emit(f"  ⏳ 1/3 - {self.t['audio_extract']}")
+                    t0 = time.time()
                     audio_path = processor.extract_audio(video_path)
+                    t_extract = time.time() - t0
 
                     self.progress_signal.emit(f"  ⏳ 2/3 - {self.t['speech_recognition']}")
+                    t0 = time.time()
                     transcription = processor.transcribe(audio_path)
+                    t_transcribe = time.time() - t0
 
                     self.progress_signal.emit(f"  ⏳ 3/3 - {self.t['subtitle_generation']}")
+                    t0 = time.time()
                     subtitle_path = subtitle_gen.generate(transcription, video_path)
+                    t_subtitle = time.time() - t0
+
+                    t_total = time.time() - file_start
+
+                    # 처리 시간 로그 출력
+                    time_msg = (f"  ⏱️ {self._format_duration(t_total)} "
+                                f"(extract: {self._format_duration(t_extract)}, "
+                                f"ASR: {self._format_duration(t_transcribe)}, "
+                                f"subtitle: {self._format_duration(t_subtitle)})")
+                    if video_duration:
+                        speed_ratio = video_duration / t_total
+                        time_msg += f" | {speed_ratio:.1f}x realtime"
+                    self.progress_signal.emit(time_msg)
 
                     self.progress_signal.emit(f"  ✅ {self.t['complete']}: {subtitle_path}\n")
 
+                    # 파일 로그 기록
+                    self._write_log(f"  Audio extract: {self._format_duration(t_extract)}")
+                    self._write_log(f"  ASR inference: {self._format_duration(t_transcribe)}")
+                    self._write_log(f"  Subtitle gen:  {self._format_duration(t_subtitle)}")
+                    self._write_log(f"  Total:         {self._format_duration(t_total)}")
+                    if video_duration:
+                        self._write_log(f"  Speed:         {speed_ratio:.1f}x realtime (video: {duration_str})")
+                    self._write_log(f"  Output:        {subtitle_path}")
+                    self._write_log(f"  Status:        SUCCESS")
+
                     if os.path.exists(audio_path):
                         os.remove(audio_path)
-                    
+
                     # 완료 상태 전송
                     self.item_status_signal.emit(i, 'done')
 
@@ -409,17 +490,22 @@ class ProcessThread(QThread):
                     error_detail = traceback.format_exc()
                     self.progress_signal.emit(f"\n  ❌ {self.t['error']}: {os.path.basename(video_path)}")
                     self.progress_signal.emit(f"  {str(file_error)}")
-                    
+                    self._write_log(f"  Status:        FAILED - {str(file_error)}")
+
                     # 에러 상태 전송
                     self.item_status_signal.emit(i, 'error')
                     continue
 
+            batch_total = time.time() - batch_start
+            self._write_log(f"=== All done: {self._format_duration(batch_total)} ===")
+            self.progress_signal.emit(f"\n⏱️ Total: {self._format_duration(batch_total)}")
             self.finished_signal.emit(True, self.t['all_complete'])
 
         except Exception as e:
             import traceback
             error_detail = traceback.format_exc()
             self.progress_signal.emit(f"\n❌ {str(e)}")
+            self._write_log(f"FATAL ERROR: {str(e)}\n{error_detail}")
             self.finished_signal.emit(False, str(e))
 
 

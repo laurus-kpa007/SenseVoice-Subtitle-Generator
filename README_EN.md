@@ -4,12 +4,15 @@
 
 A GUI application that automatically generates subtitles from video files using SenseVoice (FunASR).
 
+Unlike Whisper, SenseVoice achieves up to **27x realtime speed on CPU alone** — no GPU required. A 2.5-hour video can be processed in about 5 minutes.
+
 ![Python](https://img.shields.io/badge/Python-3.12+-blue)
 ![License](https://img.shields.io/badge/License-MIT-green)
 ![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20Mac-lightgrey)
 
 ## Features
 
+- **Ultra-fast Processing** - Up to 27x realtime on CPU alone (2.5h video → ~5 min), far faster than Whisper
 - **Automatic Subtitle Generation** - Supports MP4, AVI, MKV, MOV, FLV, WMV, WEBM, M4V and more
 - **Multilingual Support** - Auto-detection for 50+ languages including Korean, English, Japanese
 - **Emotion Recognition** - Detects emotions (happy, sad, angry, etc.) and tags them in subtitles
@@ -20,7 +23,7 @@ A GUI application that automatically generates subtitles from video files using 
 - **EBU R128 Normalization** - Normalizes volume for improved recognition accuracy
 - **Batch Processing** - Process entire folders at once
 - **Multithreaded Processing** - High-speed parallel processing using multiple CPU threads
-- **GPU Acceleration** - Up to 15x faster processing with NVIDIA CUDA
+- **GPU Acceleration** - Additional acceleration available with NVIDIA CUDA GPU
 - **Drag & Drop** - Simply drag files into the window to add them
 - **Bilingual UI** - Switch between Korean and English interface
 - **Auto-save Settings** - All options are automatically saved and restored
@@ -141,12 +144,21 @@ pip install torch torchaudio --index-url https://download.pytorch.org/whl/cu121
 pip install -U funasr modelscope python-Levenshtein
 ```
 
-### Performance Comparison
+### Measured Performance (CPU, MDX Voice Separation ON)
 
-| Hardware | 1 min video | 1 hour video | Batch Size |
-|----------|------------|-------------|------------|
-| CPU only | ~60s | ~60 min | 1 |
-| GPU (RTX 5070 Ti) | ~4s | ~4 min | 8 |
+> Whisper typically runs at 1x or slower on CPU. SenseVoice achieves up to **27x realtime on CPU alone**.
+
+| Video Duration | Processing Time | Speed | Notes |
+|---------------|----------------|-------|-------|
+| 143 min (2h 23m) | 5 min 20s | **26.8x realtime** | With MDX voice separation |
+| 148 min (2h 28m) | 5 min 21s | **27.8x realtime** | With MDX voice separation |
+
+**Per-stage Breakdown (average):**
+| Stage | Time | Ratio |
+|-------|------|-------|
+| Audio extraction | ~1 min 30s | 28% |
+| ASR inference | ~3 min 50s | 72% |
+| Subtitle generation | <1s | ~0% |
 
 > For detailed performance tuning, see [PERFORMANCE_GUIDE.md](PERFORMANCE_GUIDE.md).
 
